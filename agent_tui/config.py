@@ -1505,3 +1505,12 @@ def __getattr__(name: str) -> Settings | Console:
         return _get_console()
     msg = f"module {__name__!r} has no attribute {name!r}"
     raise AttributeError(msg)
+
+
+def build_langsmith_thread_url(thread_id: str) -> str | None:
+    """Stub: LangSmith integration is not available in standalone mode.
+
+    Returns:
+        Always ``None`` — LangSmith tracing is not wired in the scaffold.
+    """
+    return None
