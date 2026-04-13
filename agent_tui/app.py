@@ -66,12 +66,12 @@ from agent_tui.widgets.welcome import WelcomeBanner
 logger = logging.getLogger(__name__)
 _monotonic = time.monotonic
 
+from agent_tui.protocol import AgentProtocol
+from agent_tui.adapter import AgentAdapter
+
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from deepagents.backends import CompositeBackend
-    from langchain_core.runnables import RunnableConfig
-    from langgraph.pregel import Pregel
     from textual.app import ComposeResult
     from textual.events import Click, MouseUp, Paste
     from textual.scrollbar import ScrollUp
@@ -80,10 +80,7 @@ if TYPE_CHECKING:
 
     from agent_tui._ask_user_types import AskUserWidgetResult, Question
     from agent_tui.mcp_tools import MCPServerInfo
-    from agent_tui.remote_client import RemoteAgent
-    from agent_tui.server import ServerProcess
     from agent_tui.skills.load import ExtendedSkillMetadata
-    from agent_tui.textual_adapter import TextualUIAdapter
     from agent_tui.widgets.approval import ApprovalMenu
     from agent_tui.widgets.ask_user import AskUserMenu
 
@@ -509,64 +506,25 @@ class DeepAgentsApp(App):
     def __init__(
         self,
         *,
-        agent: Pregel | None = None,
-        assistant_id: str | None = None,
-        backend: CompositeBackend | None = None,
+        agent: AgentProtocol,
         auto_approve: bool = False,
         cwd: str | Path | None = None,
         thread_id: str | None = None,
-        resume_thread: str | None = None,
         initial_prompt: str | None = None,
         initial_skill: str | None = None,
         mcp_server_info: list[MCPServerInfo] | None = None,
-        profile_override: dict[str, Any] | None = None,
-        server_proc: ServerProcess | None = None,
-        server_kwargs: dict[str, Any] | None = None,
-        mcp_preload_kwargs: dict[str, Any] | None = None,
-        model_kwargs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the Deep Agents application.
 
         Args:
-            agent: Pre-configured LangGraph agent, or `None` when server
-                startup is deferred via `server_kwargs`.
-            assistant_id: Agent identifier for memory storage
-            backend: Backend for file operations
+            agent: Agent backend implementing AgentProtocol.
             auto_approve: Whether to start with auto-approve enabled
             cwd: Current working directory to display
             thread_id: Thread ID for the session.
-
-                `None` when `resume_thread` is provided (resolved asynchronously).
-            resume_thread: Raw resume intent from `-r` flag.
-
-                `'__MOST_RECENT__'` for bare `-r`, a thread ID string for
-                `-r <id>`, or `None` for new sessions.
-
-                Resolved via `_resolve_resume_thread`
-                during `_start_server_background`.
-
-                Requires `server_kwargs` to be set; ignored otherwise.
             initial_prompt: Optional prompt to auto-submit when session starts
             initial_skill: Optional skill name to invoke when session starts.
             mcp_server_info: MCP server metadata for the `/mcp` viewer.
-            profile_override: Extra profile fields from `--profile-override`,
-                retained so later profile-aware behavior stays consistent with
-                the CLI override, including model selection details,
-                offload budget display, and on-demand `create_model()`
-                calls such as `/offload`.
-            server_proc: LangGraph server process for the interactive session.
-            server_kwargs: When provided, server startup is deferred.
-
-                The app shows a "Connecting..." state and starts the server in
-                the background using these kwargs
-                for `start_server_and_get_agent`.
-            mcp_preload_kwargs: Kwargs for `_preload_session_mcp_server_info`,
-                run concurrently with server startup when `server_kwargs` is set.
-            model_kwargs: Kwargs for deferred `create_model()`.
-
-                When provided, model creation runs in a background worker after
-                first paint instead of blocking startup.
             **kwargs: Additional arguments passed to parent
         """
         super().__init__(**kwargs)
@@ -577,10 +535,9 @@ class DeepAgentsApp(App):
         self.theme = _load_theme_preference()
 
         self._agent = agent
+        self._adapter = AgentAdapter(agent=agent, app=self)
 
-        self._assistant_id = assistant_id
-
-        self._backend = backend
+        self._assistant_id: str | None = None
 
         self._auto_approve = auto_approve
 
@@ -592,7 +549,7 @@ class DeepAgentsApp(App):
         Named `_lc_thread_id` to avoid collision with Textual's `App._thread_id`.
         """
 
-        self._resume_thread_intent = resume_thread
+        self._resume_thread_intent: str | None = None
 
         self._initial_prompt = initial_prompt
 
@@ -604,24 +561,17 @@ class DeepAgentsApp(App):
 
         self._mcp_server_info = mcp_server_info
 
-        self._profile_override = profile_override
+        self._profile_override: dict[str, Any] | None = None
 
-        self._server_proc = server_proc
+        self._server_proc: Any = None
 
-        self._server_kwargs = server_kwargs
+        self._server_kwargs: dict[str, Any] | None = None
 
-        self._mcp_preload_kwargs = mcp_preload_kwargs
+        self._mcp_preload_kwargs: dict[str, Any] | None = None
 
-        self._model_kwargs = model_kwargs
+        self._model_kwargs: dict[str, Any] | None = None
 
-        self._connecting = server_kwargs is not None
-        # Extract sandbox type from server kwargs for trace metadata.
-        # ServerConfig.__post_init__ normalizes "none" → None, but server_kwargs carries
-        # the raw argparse value, so guard against both.
-
-        raw = (server_kwargs or {}).get("sandbox_type")
-
-        self._sandbox_type: str | None = raw if raw and raw != "none" else None
+        self._connecting = False
 
         self._model_override: str | None = None
 
@@ -636,8 +586,6 @@ class DeepAgentsApp(App):
         self._quit_pending = False
 
         self._session_state: TextualSessionState | None = None
-
-        self._ui_adapter: TextualUIAdapter | None = None
 
         self._pending_approval_widget: ApprovalMenu | None = None
 
@@ -736,25 +684,9 @@ class DeepAgentsApp(App):
 
         self._image_tracker = MediaTracker()
 
-    def _remote_agent(self) -> RemoteAgent | None:
-        """Return the agent narrowed to `RemoteAgent`, or `None`.
-
-        Returns `None` when:
-
-        - No agent is configured (`self._agent is None`).
-        - The agent is a local `Pregel` graph (e.g. ACP mode, test harnesses).
-
-        Used to gate features that require a server-backed agent (e.g. model
-        switching via `ConfigurableModelMiddleware`, checkpointer fallback).
-        Checks the agent type rather than server ownership so this works for
-        both CLI-spawned servers and externally managed ones.
-
-        Returns:
-            The `RemoteAgent` instance, or `None` for local agents.
-        """
-        from agent_tui.remote_client import RemoteAgent
-
-        return self._agent if isinstance(self._agent, RemoteAgent) else None
+    def _remote_agent(self) -> None:
+        """Always returns None — remote agent support removed in scaffold extraction."""
+        return None
 
     def get_theme_variable_defaults(self) -> dict[str, str]:
         """Return custom CSS variable defaults for the current theme.
@@ -900,25 +832,7 @@ class DeepAgentsApp(App):
         Everything here is non-blocking: workers and thread-offloaded calls
         so the UI stays responsive.
         """
-        # Create UI adapter unconditionally — it only holds UI callbacks and
-        # doesn't depend on the agent. The agent is injected later at
-        # execute_task_textual() call time.
-        from agent_tui.textual_adapter import TextualUIAdapter
-
-        self._ui_adapter = TextualUIAdapter(
-            mount_message=self._mount_message,
-            update_status=self._update_status,
-            request_approval=self._request_approval,
-            on_auto_approve_enabled=self._on_auto_approve_enabled,
-            set_spinner=self._set_spinner,
-            set_active_message=self._set_active_message,
-            sync_message_content=self._sync_message_content,
-            request_ask_user=self._request_ask_user,
-        )
-        # Wire token display callbacks
-        self._ui_adapter._on_tokens_update = self._on_tokens_update
-        self._ui_adapter._on_tokens_hide = self._hide_tokens
-        self._ui_adapter._on_tokens_show = self._show_tokens
+        # AgentAdapter is already set up in __init__ — no deferred wiring needed.
 
         # Fire-and-forget workers — none of these block the event loop.
 
@@ -931,14 +845,6 @@ class DeepAgentsApp(App):
         )
 
         self.run_worker(self._init_session_state, exclusive=True, group="session-init")
-
-        # Server startup (model creation + server process)
-        if self._server_kwargs is not None:
-            self.run_worker(
-                self._start_server_background,
-                exclusive=True,
-                group="server-startup",
-            )
 
         # Background update check and what's-new banner
         # (opt-out via env var or config.toml [update].check)
@@ -1195,82 +1101,8 @@ class DeepAgentsApp(App):
             self._session_state.thread_id = self._lc_thread_id
 
     async def _start_server_background(self) -> None:
-        """Background worker: resolve resume-thread intent, start server + MCP preload.
-
-        Also runs deferred model creation if `model_kwargs` was provided,
-        so the langchain import + init doesn't block first paint.
-        """
-        # Phase 1: Resolve resume thread (if any) before server startup
-        if self._resume_thread_intent:
-            await self._resolve_resume_thread()
-
-        # Run deferred model creation. settings.model_name / model_provider
-        # are already set eagerly for the status bar display; this call
-        # does the heavy langchain import + SDK init and may refine them
-        # (e.g., context_limit from the model profile).
-        if self._model_kwargs is not None:
-            from agent_tui.config import create_model
-            from agent_tui.model_config import ModelConfigError, save_recent_model
-
-            try:
-                result = create_model(**self._model_kwargs)
-            except ModelConfigError as exc:
-                self.post_message(self.ServerStartFailed(error=exc))
-                return
-            result.apply_to_settings()
-            save_recent_model(f"{result.provider}:{result.model_name}")
-            self._model_kwargs = None  # consumed
-
-        from agent_tui.server_manager import start_server_and_get_agent
-
-        coros: list[Any] = [start_server_and_get_agent(**self._server_kwargs)]  # type: ignore[arg-type]
-
-        if self._mcp_preload_kwargs is not None:
-            from agent_tui.main import _preload_session_mcp_server_info
-
-            coros.append(_preload_session_mcp_server_info(**self._mcp_preload_kwargs))
-
-        try:
-            results = await asyncio.gather(*coros, return_exceptions=True)
-        except Exception as exc:  # noqa: BLE001  # defensive catch around gather
-            self.post_message(self.ServerStartFailed(error=exc))
-            return
-
-        server_result = results[0]
-        if isinstance(server_result, BaseException):
-            self.post_message(
-                self.ServerStartFailed(
-                    error=server_result
-                    if isinstance(server_result, Exception)
-                    else RuntimeError(str(server_result)),
-                )
-            )
-            return
-
-        agent, server_proc, _ = server_result
-
-        # Assign immediately so the finally block in run_textual_app can
-        # clean up the server even if the ServerReady message is never
-        # processed (e.g. user quits during startup).
-        self._server_proc = server_proc
-
-        mcp_info = None
-        if len(results) > 1 and not isinstance(results[1], BaseException):
-            mcp_info = results[1]
-        elif len(results) > 1 and isinstance(results[1], BaseException):
-            logger.warning(
-                "MCP metadata preload failed: %s",
-                results[1],
-                exc_info=results[1],
-            )
-
-        self.post_message(
-            self.ServerReady(
-                agent=agent,
-                server_proc=server_proc,
-                mcp_server_info=mcp_info,
-            )
-        )
+        """No-op: server lifecycle removed in scaffold extraction."""
+        logger.debug("_start_server_background called but server lifecycle is removed")
 
     def on_deep_agents_app_server_ready(self, event: ServerReady) -> None:
         """Handle successful background server startup."""
@@ -1361,22 +1193,7 @@ class DeepAgentsApp(App):
         from agent_tui.config import settings  # noqa: F401
         from agent_tui.hooks import dispatch_hook  # noqa: F401
         from agent_tui.model_config import ModelSpec  # noqa: F401
-        from agent_tui.textual_adapter import TextualUIAdapter  # noqa: F401
         from agent_tui.update_check import is_update_check_enabled  # noqa: F401
-
-        try:
-            # Heavy third-party deps deferred from textual_adapter /
-            # tool_display — hit on first message send and first tool
-            # approval. Best-effort: missing optional deps should not block the
-            # TUI from rendering.
-            from deepagents.backends import DEFAULT_EXECUTE_TIMEOUT  # noqa: F401
-            from langchain.agents.middleware.human_in_the_loop import (  # noqa: F401
-                ApproveDecision,
-            )
-            from langchain_core.messages import AIMessage  # noqa: F401
-            from langgraph.types import Command  # noqa: F401
-        except Exception:
-            logger.warning("Could not prewarm third-party imports", exc_info=True)
 
         # Markdown rendering stack — ~170 ms cold (textual._markdown pulls in
         # markdown_it, pygments, linkify_it — 438 modules).  Hit on first
@@ -3047,190 +2864,26 @@ class DeepAgentsApp(App):
         """Return the approximate conversation-only token count.
 
         Returns:
-            Token count as an integer, or `None` if state is unavailable.
+            None — stubbed pending Task 21 wiring to AgentProtocol.
         """
-        if not self._agent:
-            return None
-        try:
-            from langchain_core.messages.utils import (
-                count_tokens_approximately,
-            )
-
-            config: RunnableConfig = {
-                "configurable": {"thread_id": self._lc_thread_id},
-            }
-            state = await self._agent.aget_state(config)
-            if not state or not state.values:
-                return None
-            messages = state.values.get("messages", [])
-            if not messages:
-                return None
-            return count_tokens_approximately(messages)
-        except Exception:  # best-effort for /tokens display
-            logger.debug("Failed to retrieve conversation token count", exc_info=True)
-            return None
+        return None  # TODO(Task 21): wire to agent.get_thread_state
 
     def _resolve_offload_budget_str(self) -> str | None:
         """Resolve the offload retention budget as a human-readable string.
 
-        Instantiates a model and computes summarization defaults, so this is
-        not a trivial accessor.
-
         Returns:
-            A string like `"20.0K (10% of 200.0K)"` or
-            `"last 6 messages"`, or `None` if the budget cannot be determined.
+            None — stubbed pending Task 21 wiring.
         """
-        from agent_tui.config import create_model, settings
-
-        try:
-            from deepagents.middleware.summarization import (
-                compute_summarization_defaults,
-            )
-
-            model_spec = f"{settings.model_provider}:{settings.model_name}"
-            result = create_model(
-                model_spec,
-                profile_overrides=self._profile_override,
-            )
-            defaults = compute_summarization_defaults(result.model)
-            from agent_tui.offload import format_offload_limit
-
-            return format_offload_limit(
-                defaults["keep"],
-                settings.model_context_limit,
-            )
-        except Exception:  # best-effort for /tokens display
-            logger.debug("Failed to compute offload budget string", exc_info=True)
-            return None
+        return None  # TODO(Task 21): wire to agent capabilities
 
     async def _handle_offload(self) -> None:
-        """Offload older messages to free context window space."""
-        from agent_tui.config import settings
-        from agent_tui.offload import (
-            OffloadModelError,
-            OffloadThresholdNotMet,
-            perform_offload,
-        )
+        """Offload older messages to free context window space.
 
-        if not self._agent or not self._lc_thread_id:
-            await self._mount_message(
-                AppMessage("Nothing to offload \u2014 start a conversation first")
-            )
-            return
-
-        if self._agent_running:
-            await self._mount_message(
-                AppMessage("Cannot offload while agent is running")
-            )
-            return
-
-        config: RunnableConfig = {"configurable": {"thread_id": self._lc_thread_id}}
-
-        try:
-            state_values = await self._get_thread_state_values(self._lc_thread_id)
-        except Exception as exc:  # noqa: BLE001
-            await self._mount_message(ErrorMessage(f"Failed to read state: {exc}"))
-            return
-
-        if not state_values:
-            await self._mount_message(
-                AppMessage("Nothing to offload \u2014 start a conversation first")
-            )
-            return
-
-        # Prevent concurrent user input while offload modifies state
-        self._agent_running = True
-        try:
-            from agent_tui.hooks import dispatch_hook
-
-            await dispatch_hook("context.offload", {})
-            # Keep old hook name for backward compatibility
-            await dispatch_hook("context.compact", {})
-            await self._set_spinner("Offloading")
-
-            result = await perform_offload(
-                messages=state_values.get("messages", []),
-                prior_event=state_values.get("_summarization_event"),
-                thread_id=self._lc_thread_id,
-                model_spec=(f"{settings.model_provider}:{settings.model_name}"),
-                profile_overrides=self._profile_override,
-                context_limit=settings.model_context_limit,
-                total_context_tokens=self._context_tokens,
-                backend=self._backend,
-            )
-
-            if isinstance(result, OffloadThresholdNotMet):
-                conv_str = format_token_count(result.conversation_tokens)
-                if (
-                    result.total_context_tokens > 0
-                    and result.context_limit is not None
-                    and result.total_context_tokens > result.context_limit
-                ):
-                    total_str = format_token_count(
-                        result.total_context_tokens,
-                    )
-                    await self._mount_message(
-                        AppMessage(
-                            f"Offload threshold not met \u2014 conversation "
-                            f"is only ~{conv_str} tokens.\n\n"
-                            f"The remaining context "
-                            f"({total_str} tokens) is system overhead "
-                            f"that can't be offloaded.\n\n"
-                            f"Use /tokens for a full breakdown."
-                        )
-                    )
-                else:
-                    await self._mount_message(
-                        AppMessage(
-                            f"Offload threshold not met \u2014 conversation "
-                            f"(~{conv_str} tokens) is within the "
-                            f"retention budget "
-                            f"({result.budget_str}).\n\n"
-                            f"Use /tokens for a full breakdown."
-                        )
-                    )
-                return
-
-            # OffloadResult — success
-            if result.offload_warning:
-                await self._mount_message(ErrorMessage(result.offload_warning))
-
-            if remote := self._remote_agent():
-                await remote.aensure_thread(config)  # ty: ignore[invalid-argument-type]
-
-            await self._agent.aupdate_state(
-                config, {"_summarization_event": result.new_event}
-            )
-
-            before = format_token_count(result.tokens_before)
-            after = format_token_count(result.tokens_after)
-            await self._mount_message(
-                AppMessage(
-                    f"Offloaded {result.messages_offloaded} older messages, "
-                    f"freeing up context window space.\n"
-                    f"Context: {before} \u2192 {after} tokens "
-                    f"({result.pct_decrease}% decrease), "
-                    f"{result.messages_kept} messages kept."
-                )
-            )
-
-            self._on_tokens_update(result.tokens_after)
-            from agent_tui.textual_adapter import _persist_context_tokens
-
-            await _persist_context_tokens(self._agent, config, result.tokens_after)
-
-        except OffloadModelError as exc:
-            logger.warning("Offload model creation failed: %s", exc, exc_info=True)
-            await self._mount_message(ErrorMessage(str(exc)))
-        except Exception as exc:  # surface offload errors to user
-            logger.exception("Offload failed")
-            await self._mount_message(ErrorMessage(f"Offload failed: {exc}"))
-        finally:
-            self._agent_running = False
-            try:
-                await self._set_spinner(None)
-            except Exception:  # best-effort spinner cleanup
-                logger.exception("Failed to dismiss spinner after offload")
+        Stubbed pending Task 21 wiring to AgentProtocol.
+        """
+        await self._mount_message(
+            AppMessage("/offload is not yet available in standalone mode.")
+        )  # TODO(Task 21): wire to agent.offload_context()
 
     async def _handle_user_message(self, message: str) -> None:
         """Handle a user message to send to the agent.
@@ -3263,91 +2916,41 @@ class DeepAgentsApp(App):
         with suppress(NoMatches, ScreenStackError):
             self.query_one("#chat", VerticalScroll).anchor()
 
-        # Check if agent is available
-        if self._agent and self._ui_adapter and self._session_state:
-            self._agent_running = True
+        # Agent is always available (required constructor arg)
+        self._agent_running = True
 
-            if self._chat_input:
-                self._chat_input.set_cursor_active(active=False)
+        if self._chat_input:
+            self._chat_input.set_cursor_active(active=False)
 
-            # Use run_worker to avoid blocking the main event loop
-            # This allows the UI to remain responsive during agent execution
-            self._agent_worker = self.run_worker(
-                self._run_agent_task(message, message_kwargs=message_kwargs),
-                exclusive=False,
-            )
-        elif self._server_startup_error:
-            await self._mount_message(
-                ErrorMessage(f"Server failed to start: {self._server_startup_error}")
-            )
-        else:
-            await self._mount_message(
-                AppMessage("Agent not configured for this session.")
-            )
+        # Use run_worker to avoid blocking the main event loop
+        # This allows the UI to remain responsive during agent execution
+        self._agent_worker = self.run_worker(
+            self._run_agent_task(message, message_kwargs=message_kwargs),
+            exclusive=False,
+        )
 
     async def _run_agent_task(
         self,
         message: str,
         *,
-        message_kwargs: dict[str, Any] | None = None,
+        message_kwargs: dict[str, Any] | None = None,  # noqa: ARG002
     ) -> None:
-        """Run the agent task in a background worker.
+        """Run the agent task in a background worker via AgentAdapter.
 
         This runs in a Textual worker so the main event loop stays responsive.
 
         Args:
             message: The prompt to send to the agent.
-            message_kwargs: Extra fields merged into the stream input message
-                dict (e.g., `additional_kwargs` for skill metadata).
+            message_kwargs: Retained for API compatibility; not forwarded to
+                the adapter (Tasks 21/22 will wire this up as needed).
         """
-        # Caller ensures _ui_adapter is set (checked in _handle_user_message)
-        if self._ui_adapter is None:
-            return
-        from agent_tui.textual_adapter import execute_task_textual
-
-        # Create the stats object up-front and store on the app so
-        # exit() can merge it synchronously if the worker is cancelled
-        # before this method can return (e.g. Ctrl+D during HITL).
-        turn_stats = SessionStats()
-        self._inflight_turn_stats = turn_stats
+        self._inflight_turn_stats = SessionStats()
         self._inflight_turn_start = time.monotonic()
         try:
-            await execute_task_textual(
-                user_input=message,
-                agent=self._agent,
-                assistant_id=self._assistant_id,
-                session_state=self._session_state,
-                adapter=self._ui_adapter,
-                backend=self._backend,
-                image_tracker=self._image_tracker,
-                sandbox_type=self._sandbox_type,
-                message_kwargs=message_kwargs,
-                context=CLIContext(
-                    model=self._model_override,
-                    model_params=self._model_params_override or {},
-                ),
-                turn_stats=turn_stats,
-            )
-        except Exception as e:  # Resilient tool rendering
-            logger.exception("Agent execution failed")
-            # Ensure any in-flight tool calls don't remain stuck in "Running..."
-            # when streaming aborts before tool results arrive.
-            if self._ui_adapter:
-                self._ui_adapter.finalize_pending_tools_with_error(f"Agent error: {e}")
-            try:
-                await self._mount_message(ErrorMessage(f"Agent error: {e}"))
-            except Exception:
-                logger.debug(
-                    "Could not mount error message (app closing?)", exc_info=True
-                )
+            await self._adapter.run_task(message, thread_id=self._lc_thread_id)
         finally:
-            # Merge turn stats before cleanup — _cleanup_agent_task may raise
-            # during teardown (widget removal on a torn-down DOM), and stats
-            # should ideally be captured regardless.
-            # exit() clears _inflight_turn_stats when it merges, so
-            # checking for None prevents double-counting.
             if self._inflight_turn_stats is not None:
-                self._session_stats.merge(turn_stats)
+                self._session_stats.merge(self._inflight_turn_stats)
                 self._inflight_turn_stats = None
             await self._cleanup_agent_task()
 
@@ -3416,244 +3019,53 @@ class DeepAgentsApp(App):
         await self._process_next_from_queue()
 
     @staticmethod
-    def _convert_messages_to_data(messages: list[Any]) -> list[MessageData]:
-        """Convert LangChain messages into lightweight `MessageData` objects.
+    def _convert_messages_to_data(
+        messages: list[Any],  # noqa: ARG004
+    ) -> list[MessageData]:
+        """Convert agent messages into MessageData objects.
 
-        This is a pure function with zero DOM operations. Tool call matching
-        happens here: `ToolMessage` results are matched by `tool_call_id` and
-        stored directly on the corresponding `MessageData`.
+        Stubbed pending Task 21 wiring. History now comes via AgentProtocol.
 
         Args:
-            messages: LangChain message objects from a thread checkpoint.
+            messages: Message objects (ignored).
 
         Returns:
-            Ordered list of `MessageData` ready for `MessageStore.bulk_load`.
+            Empty list — TODO(Task 21): convert AgentEvent history records.
         """
-        from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-
-        result: list[MessageData] = []
-        # Maps tool_call_id -> index into result list
-        pending_tool_indices: dict[str, int] = {}
-
-        for msg in messages:
-            if isinstance(msg, HumanMessage):
-                content = (
-                    msg.content if isinstance(msg.content, str) else str(msg.content)
-                )
-                if content.startswith("[SYSTEM]"):
-                    continue
-
-                # Detect skill invocations persisted via additional_kwargs
-                skill_meta = (msg.additional_kwargs or {}).get("__skill")
-                if isinstance(skill_meta, dict) and skill_meta.get("name"):
-                    result.append(
-                        MessageData(
-                            type=MessageType.SKILL,
-                            content="",
-                            skill_name=skill_meta["name"],
-                            skill_description=str(skill_meta.get("description", "")),
-                            skill_source=str(skill_meta.get("source", "")),
-                            skill_args=str(skill_meta.get("args", "")),
-                            skill_body=content,
-                        )
-                    )
-                else:
-                    result.append(MessageData(type=MessageType.USER, content=content))
-
-            elif isinstance(msg, AIMessage):
-                # Extract text content
-                content = msg.content
-                text = ""
-                if isinstance(content, str):
-                    text = content.strip()
-                elif isinstance(content, list):
-                    for block in content:
-                        if isinstance(block, dict) and block.get("type") == "text":
-                            text += block.get("text", "")
-                        elif isinstance(block, str):
-                            text += block
-                    text = text.strip()
-
-                if text:
-                    result.append(MessageData(type=MessageType.ASSISTANT, content=text))
-
-                # Track tool calls for later matching
-                for tc in getattr(msg, "tool_calls", []):
-                    tc_id = tc.get("id")
-                    name = tc.get("name", "unknown")
-                    args = tc.get("args", {})
-                    data = MessageData(
-                        type=MessageType.TOOL,
-                        content="",
-                        tool_name=name,
-                        tool_args=args,
-                        tool_status=ToolStatus.PENDING,
-                    )
-                    result.append(data)
-                    if tc_id:
-                        pending_tool_indices[tc_id] = len(result) - 1
-                    else:
-                        data.tool_status = ToolStatus.REJECTED
-
-            elif isinstance(msg, ToolMessage):
-                tc_id = getattr(msg, "tool_call_id", None)
-                if tc_id and tc_id in pending_tool_indices:
-                    idx = pending_tool_indices.pop(tc_id)
-                    data = result[idx]
-                    status = getattr(msg, "status", "success")
-                    content = (
-                        msg.content
-                        if isinstance(msg.content, str)
-                        else str(msg.content)
-                    )
-                    if status == "success":
-                        data.tool_status = ToolStatus.SUCCESS
-                    else:
-                        data.tool_status = ToolStatus.ERROR
-                    data.tool_output = content
-                else:
-                    logger.debug(
-                        "ToolMessage with tool_call_id=%r could not be "
-                        "matched to a pending tool call",
-                        tc_id,
-                    )
-
-            else:
-                logger.debug(
-                    "Skipping unsupported message type %s during history conversion",
-                    type(msg).__name__,
-                )
-
-        # Mark unmatched tool calls as rejected
-        for idx in pending_tool_indices.values():
-            result[idx].tool_status = ToolStatus.REJECTED
-
-        return result
+        return []  # TODO(Task 21): convert history from AgentProtocol
 
     async def _get_thread_state_values(self, thread_id: str) -> dict[str, Any]:
-        """Fetch thread state values, with remote checkpointer fallback.
+        """Fetch thread state values.
 
-        In server mode the LangGraph dev server can report an empty thread state
-        after a restart even when checkpoints exist on disk. When that happens,
-        read the latest checkpoint directly so resumed threads can still load
-        history and offload correctly.
+        Stubbed pending Task 21 wiring to AgentProtocol.
 
         Args:
             thread_id: Thread ID to fetch from checkpoint storage.
 
         Returns:
-            Thread state values keyed by channel name. Returns an empty dict
-                when no checkpointed values are available.
+            Empty dict — TODO(Task 21): wire to agent.get_thread_state().
         """
-        if not self._agent:
-            return {}
-
-        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
-        state = await self._agent.aget_state(config)
-
-        values: dict[str, Any] = {}
-        if state and state.values:
-            values = dict(state.values)
-
-        messages = values.get("messages")
-        if isinstance(messages, list) and messages:
-            return values
-        if not self._remote_agent():
-            return values
-
-        logger.debug(
-            "Remote state empty for thread %s; falling back to local checkpointer",
-            thread_id,
-        )
-        fallback_values = await self._read_channel_values_from_checkpointer(thread_id)
-        fallback_messages = fallback_values.get("messages")
-        if isinstance(fallback_messages, list) and fallback_messages:
-            values["messages"] = fallback_messages
-        if (
-            values.get("_summarization_event") is None
-            and "_summarization_event" in fallback_values
-        ):
-            values["_summarization_event"] = fallback_values["_summarization_event"]
-        if (
-            values.get("_context_tokens") is None
-            and "_context_tokens" in fallback_values
-        ):
-            values["_context_tokens"] = fallback_values["_context_tokens"]
-        return values
+        return {}  # TODO(Task 21): wire to agent.get_thread_state(thread_id)
 
     async def _fetch_thread_history_data(self, thread_id: str) -> _ThreadHistoryPayload:
         """Fetch and convert stored messages for a thread.
 
-        In server mode the LangGraph dev server starts with an empty thread
-        store, so `aget_state` via the HTTP API returns no messages even when
-        checkpoints exist on disk. We fall back to reading the SQLite
-        checkpointer directly to guarantee resumed threads load their history.
+        Stubbed pending Task 21 wiring to AgentProtocol.
 
         Args:
             thread_id: Thread ID to fetch from checkpoint storage.
 
         Returns:
-            Payload containing converted message data and the persisted
-            context-token count.
+            Empty payload — TODO(Task 21): wire to agent.get_thread_history().
         """
-        state_values = await self._get_thread_state_values(thread_id)
-        raw_tokens = state_values.get("_context_tokens")
-        context_tokens = (
-            raw_tokens if isinstance(raw_tokens, int) and raw_tokens >= 0 else 0
-        )
-        messages = state_values.get("messages", [])
-
-        if not messages:
-            return _ThreadHistoryPayload([], context_tokens)
-
-        # Server mode / direct checkpointer may return dicts; convert to
-        # LangChain message objects so _convert_messages_to_data works.
-        if messages and isinstance(messages[0], dict):
-            from langchain_core.messages.utils import convert_to_messages
-
-            messages = convert_to_messages(messages)
-
-        # Offload conversion so large histories don't block the UI loop.
-        data = await asyncio.to_thread(self._convert_messages_to_data, messages)
-        return _ThreadHistoryPayload(data, context_tokens)
+        return _ThreadHistoryPayload([], 0)  # TODO(Task 21)
 
     @staticmethod
-    async def _read_channel_values_from_checkpointer(thread_id: str) -> dict[str, Any]:
-        """Read checkpoint channel values directly from the SQLite checkpointer.
-
-        Args:
-            thread_id: Thread ID to look up.
-
-        Returns:
-            Channel values from the latest checkpoint, or an empty dict on
-                failure.
-        """
-        try:
-            from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-
-            from agent_tui.sessions import get_db_path
-
-            db_path = str(get_db_path())
-            config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
-            async with AsyncSqliteSaver.from_conn_string(db_path) as saver:
-                tup = await saver.aget_tuple(config)
-                if tup and tup.checkpoint:
-                    channel_values = tup.checkpoint.get("channel_values", {})
-                    if isinstance(channel_values, dict):
-                        return dict(channel_values)
-        except (ImportError, OSError) as exc:
-            logger.warning(
-                "Failed to read checkpointer directly for %s: %s",
-                thread_id,
-                exc,
-            )
-        except Exception:
-            logger.warning(
-                "Unexpected error reading checkpointer for %s",
-                thread_id,
-                exc_info=True,
-            )
-        return {}
+    async def _read_channel_values_from_checkpointer(
+        thread_id: str,  # noqa: ARG004
+    ) -> dict[str, Any]:
+        """No-op — checkpointer access removed in scaffold extraction."""
+        return {}  # TODO(Task 21): not needed; history comes via AgentProtocol
 
     async def _upgrade_thread_message_link(
         self,
@@ -4958,6 +4370,73 @@ class DeepAgentsApp(App):
                 )
             )
 
+    # =========================================================================
+    # Semantic methods called by AgentAdapter
+    # =========================================================================
+
+    def append_assistant_text(self, text: str) -> None:
+        """Append streaming text to the current assistant message.
+
+        Called by AgentAdapter on MESSAGE_CHUNK events. Full wiring happens
+        in Task 21; this stub satisfies the interface contract for now.
+        """
+        pass  # TODO(Task 21): wire to AssistantMessage streaming logic
+
+    def finalize_assistant_message(self) -> None:
+        """Mark the current assistant message as complete.
+
+        Called by AgentAdapter on MESSAGE_END events.
+        """
+        pass  # TODO(Task 21): finalise in-flight AssistantMessage
+
+    async def request_tool_approval(
+        self, tool_name: str, tool_args: dict, tool_id: str
+    ) -> bool:
+        """Push approval modal, return True/False.
+
+        Called by AgentAdapter on TOOL_CALL events.
+        Full wiring (delegating to _request_approval) happens in Task 21.
+        """
+        return True  # TODO(Task 21): wire to _request_approval
+
+    def show_tool_result(
+        self, tool_name: str, tool_output: str, tool_id: str
+    ) -> None:
+        """Mount tool result widget.
+
+        Called by AgentAdapter on TOOL_RESULT events.
+        """
+        pass  # TODO(Task 21): mount ToolCallMessage with result
+
+    async def ask_user(self, question: str) -> str:
+        """Push ask-user modal, return answer.
+
+        Called by AgentAdapter on ASK_USER events.
+        Full wiring (delegating to _request_ask_user) happens in Task 21.
+        """
+        return ""  # TODO(Task 21): wire to _request_ask_user
+
+    def update_token_display(self, token_count: int, context_limit: int) -> None:
+        """Update status bar token counts.
+
+        Called by AgentAdapter on TOKEN_UPDATE events.
+        """
+        self._on_tokens_update(token_count)
+
+    def set_status(self, status: str) -> None:
+        """Update status bar text.
+
+        Called by AgentAdapter on STATUS_UPDATE events and at task start/end.
+        """
+        self._update_status(status)
+
+    def show_error(self, text: str) -> None:
+        """Mount error message widget.
+
+        Called by AgentAdapter on ERROR events or unexpected exceptions.
+        """
+        self.call_later(self._mount_message, ErrorMessage(text))
+
 
 @dataclass(frozen=True)
 class AppResult:
@@ -4979,87 +4458,38 @@ class AppResult:
 
 async def run_textual_app(
     *,
-    agent: Any = None,  # noqa: ANN401
-    assistant_id: str | None = None,
-    backend: CompositeBackend | None = None,
+    agent: AgentProtocol,
     auto_approve: bool = False,
     cwd: str | Path | None = None,
     thread_id: str | None = None,
-    resume_thread: str | None = None,
     initial_prompt: str | None = None,
     initial_skill: str | None = None,
     mcp_server_info: list[MCPServerInfo] | None = None,
-    profile_override: dict[str, Any] | None = None,
-    server_proc: ServerProcess | None = None,
-    server_kwargs: dict[str, Any] | None = None,
-    mcp_preload_kwargs: dict[str, Any] | None = None,
-    model_kwargs: dict[str, Any] | None = None,
 ) -> AppResult:
     """Run the Textual application.
 
-    When `server_kwargs` is provided (and `agent` is `None`), the app starts
-    immediately with a "Connecting..." banner and launches the server in the
-    background.  Server cleanup is handled automatically after the app exits.
-
     Args:
-        agent: Pre-configured LangGraph agent (optional).
-        assistant_id: Agent identifier for memory storage.
-        backend: Backend for file operations.
+        agent: Agent backend implementing AgentProtocol (required).
         auto_approve: Whether to start with auto-approve enabled.
         cwd: Current working directory to display.
         thread_id: Thread ID for the session.
-
-            `None` when `resume_thread` is provided (the TUI resolves the final
-            ID asynchronously).
-        resume_thread: Raw resume intent from `-r` flag. `'__MOST_RECENT__'` for
-            bare `-r`, a thread ID string for `-r <id>`, or `None` for new
-            sessions.
-
-            Resolved asynchronously during TUI startup.
         initial_prompt: Optional prompt to auto-submit when session starts.
         initial_skill: Optional skill name to invoke when session starts.
         mcp_server_info: MCP server metadata for the `/mcp` viewer.
-        profile_override: Extra profile fields from `--profile-override`,
-            retained so later profile-aware behavior stays consistent with
-            the CLI override, including model selection details, offload
-            budget display, and on-demand `create_model()` calls such
-            as `/offload`.
-        server_proc: LangGraph server process for the interactive session.
-        server_kwargs: Kwargs for deferred `start_server_and_get_agent` call.
-        mcp_preload_kwargs: Kwargs for concurrent MCP metadata preload.
-        model_kwargs: Kwargs for deferred `create_model()` call.
-
-            When provided, model creation runs in a background worker after
-            first paint so the splash screen appears immediately.
 
     Returns:
         An `AppResult` with the return code and final thread ID.
     """
     app = DeepAgentsApp(
         agent=agent,
-        assistant_id=assistant_id,
-        backend=backend,
         auto_approve=auto_approve,
         cwd=cwd,
         thread_id=thread_id,
-        resume_thread=resume_thread,
         initial_prompt=initial_prompt,
         initial_skill=initial_skill,
         mcp_server_info=mcp_server_info,
-        profile_override=profile_override,
-        server_proc=server_proc,
-        server_kwargs=server_kwargs,
-        mcp_preload_kwargs=mcp_preload_kwargs,
-        model_kwargs=model_kwargs,
     )
-    try:
-        await app.run_async()
-    finally:
-        # Guarantee server cleanup regardless of how the app exits.
-        # Covers both the pre-started server_proc path and the deferred
-        # server_kwargs path (where the background worker sets _server_proc).
-        if app._server_proc is not None:
-            app._server_proc.stop()
+    await app.run_async()
 
     return AppResult(
         return_code=app.return_code or 0,
