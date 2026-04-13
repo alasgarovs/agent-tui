@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlparse
 
-from deepagents_cli._version import __version__
+from agent_tui._version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ def _load_dotenv(*, start_path: Path | None = None) -> bool:
 
         To scope credentials to the CLI without colliding with
         identically-named shell exports, use the `DEEPAGENTS_CLI_` env-var
-        prefix (see `resolve_env_var` in `deepagents_cli.model_config`).
+        prefix (see `resolve_env_var` in `agent_tui.model_config`).
 
     Args:
         start_path: Directory to use for project `.env` discovery.
@@ -170,7 +170,7 @@ def _ensure_bootstrap() -> None:
             return
 
         try:
-            from deepagents_cli.project_utils import (
+            from agent_tui.project_utils import (
                 get_server_project_context as _get_server_project_context,
             )
 
@@ -186,7 +186,7 @@ def _ensure_bootstrap() -> None:
             # separate project. LangSmith reads LANGSMITH_PROJECT at invocation
             # time, so we override it here and preserve the user's original
             # value for shell commands.
-            from deepagents_cli._env_vars import LANGSMITH_PROJECT
+            from agent_tui._env_vars import LANGSMITH_PROJECT
 
             deepagents_project = os.environ.get(LANGSMITH_PROJECT)
             if deepagents_project:
@@ -197,7 +197,7 @@ def _ensure_bootstrap() -> None:
             # LangSmith SDK reads os.environ directly and has no knowledge
             # of the DEEPAGENTS_CLI_ prefix. Setting canonical vars here
             # bridges that gap.
-            from deepagents_cli.model_config import _ENV_PREFIX
+            from agent_tui.model_config import _ENV_PREFIX
 
             for canonical in (
                 "LANGSMITH_API_KEY",
@@ -667,7 +667,7 @@ def build_stream_config(
         "versions": versions,
         "ls_integration": "deepagents-cli",
     }
-    from deepagents_cli._env_vars import USER_ID
+    from agent_tui._env_vars import USER_ID
 
     user_id = os.environ.get(USER_ID)
     if user_id:
@@ -775,7 +775,7 @@ def _read_config_toml_skills_dirs() -> list[str] | None:
     """
     import tomllib
 
-    from deepagents_cli.model_config import DEFAULT_CONFIG_PATH
+    from agent_tui.model_config import DEFAULT_CONFIG_PATH
 
     try:
         with DEFAULT_CONFIG_PATH.open("rb") as f:
@@ -920,7 +920,7 @@ class Settings:
             Settings instance with detected configuration
         """
         # Detect API keys (normalize empty strings to None).
-        from deepagents_cli.model_config import resolve_env_var
+        from agent_tui.model_config import resolve_env_var
 
         openai_key = resolve_env_var("OPENAI_API_KEY")
         anthropic_key = resolve_env_var("ANTHROPIC_API_KEY")
@@ -937,7 +937,7 @@ class Settings:
         # LANGSMITH_PROJECT. We use the saved original value, not the
         # current os.environ value. Direct callers should ensure
         # bootstrap has run if they depend on the override.
-        from deepagents_cli._env_vars import (
+        from agent_tui._env_vars import (
             EXTRA_SKILLS_DIRS,
             LANGSMITH_PROJECT,
             SHELL_ALLOW_LIST,
@@ -947,7 +947,7 @@ class Settings:
         user_langchain_project = _original_langsmith_project  # Use saved original!
 
         # Detect project
-        from deepagents_cli.project_utils import find_project_root
+        from agent_tui.project_utils import find_project_root
 
         project_root = find_project_root(start_path)
 
@@ -1037,7 +1037,7 @@ class Settings:
 
         previous = {field: getattr(self, field) for field in reloadable_fields}
 
-        from deepagents_cli._env_vars import (
+        from agent_tui._env_vars import (
             EXTRA_SKILLS_DIRS,
             LANGSMITH_PROJECT,
             SHELL_ALLOW_LIST,
@@ -1053,7 +1053,7 @@ class Settings:
             shell_allow_list = previous["shell_allow_list"]
 
         try:
-            from deepagents_cli.project_utils import find_project_root
+            from agent_tui.project_utils import find_project_root
 
             project_root = find_project_root(start_path)
         except OSError:
@@ -1062,7 +1062,7 @@ class Settings:
             )
             project_root = previous["project_root"]
 
-        from deepagents_cli.model_config import resolve_env_var
+        from agent_tui.model_config import resolve_env_var
 
         refreshed = {
             "openai_api_key": resolve_env_var("OPENAI_API_KEY"),
@@ -1186,7 +1186,7 @@ class Settings:
         """
         if not self.project_root:
             return []
-        from deepagents_cli.project_utils import find_project_agent_md
+        from agent_tui.project_utils import find_project_agent_md
 
         return find_project_agent_md(self.project_root)
 
@@ -1416,7 +1416,7 @@ class SessionState:
         self.no_splash = no_splash
         self.exit_hint_until: float | None = None
         self.exit_hint_handle = None
-        from deepagents_cli.sessions import generate_thread_id
+        from agent_tui.sessions import generate_thread_id
 
         self.thread_id = generate_thread_id()
 
@@ -1617,7 +1617,7 @@ def get_langsmith_project_name() -> str | None:
     Returns:
         Project name string when LangSmith tracing is active, None otherwise.
     """
-    from deepagents_cli.model_config import resolve_env_var
+    from agent_tui.model_config import resolve_env_var
 
     langsmith_key = resolve_env_var("LANGSMITH_API_KEY") or resolve_env_var(
         "LANGCHAIN_API_KEY"
@@ -1680,7 +1680,7 @@ def fetch_langsmith_project_url(project_name: str) -> str | None:
     def _lookup_url() -> None:
         nonlocal result, lookup_error
         try:
-            from deepagents_cli.model_config import resolve_env_var
+            from agent_tui.model_config import resolve_env_var
 
             # Explicit api_key because Client() reads os.environ directly
             # and doesn't know about the DEEPAGENTS_CLI_ prefix.
@@ -1822,7 +1822,7 @@ def _get_default_model_spec() -> str:
     Raises:
         ModelConfigError: If no credentials are configured.
     """
-    from deepagents_cli.model_config import ModelConfig, ModelConfigError
+    from agent_tui.model_config import ModelConfig, ModelConfigError
 
     config = ModelConfig.load()
     if config.default_model:
@@ -1913,14 +1913,14 @@ def _get_provider_kwargs(
     Returns:
         Dictionary of provider-specific kwargs.
     """
-    from deepagents_cli.model_config import ModelConfig
+    from agent_tui.model_config import ModelConfig
 
     config = ModelConfig.load()
     result: dict[str, Any] = config.get_kwargs(provider, model_name=model_name)
     base_url = config.get_base_url(provider)
     if base_url:
         result["base_url"] = base_url
-    from deepagents_cli.model_config import PROVIDER_API_KEY_ENV, resolve_env_var
+    from agent_tui.model_config import PROVIDER_API_KEY_ENV, resolve_env_var
 
     api_key_env = config.get_api_key_env(provider)
     if not api_key_env:
@@ -1972,7 +1972,7 @@ def _create_model_from_class(
         BaseChatModel as _BaseChatModel,  # Runtime import; module level is typing only
     )
 
-    from deepagents_cli.model_config import ModelConfigError
+    from agent_tui.model_config import ModelConfigError
 
     if ":" not in class_path:
         msg = (
@@ -2030,7 +2030,7 @@ def _create_model_via_init(
     """
     from langchain.chat_models import init_chat_model
 
-    from deepagents_cli.model_config import ModelConfigError
+    from agent_tui.model_config import ModelConfigError
 
     try:
         if provider:
@@ -2133,7 +2133,7 @@ def _apply_profile_overrides(
         ModelConfigError: If `raise_on_failure` is `True` and the model
             rejects profile assignment.
     """
-    from deepagents_cli.model_config import ModelConfigError
+    from agent_tui.model_config import ModelConfigError
 
     logger.debug("Applying %s profile overrides: %s", label, overrides)
     profile = getattr(model, "profile", None)
@@ -2197,7 +2197,7 @@ def create_model(
         >>> model = create_model("gpt-4o")  # Auto-detects openai
         >>> model = create_model()  # Uses environment defaults
     """
-    from deepagents_cli.model_config import (
+    from agent_tui.model_config import (
         IMPLICIT_AUTH_PROVIDERS,
         ModelConfig,
         ModelConfigError,

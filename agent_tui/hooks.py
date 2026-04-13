@@ -43,7 +43,7 @@ def _load_hooks() -> list[dict[str, Any]]:
     if _hooks_config is not None:
         return _hooks_config
 
-    from deepagents_cli.model_config import DEFAULT_CONFIG_DIR
+    from agent_tui.model_config import DEFAULT_CONFIG_DIR
 
     hooks_path = DEFAULT_CONFIG_DIR / "hooks.json"
 

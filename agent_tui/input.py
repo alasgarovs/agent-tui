@@ -10,8 +10,8 @@ from urllib.parse import unquote, urlparse
 
 from rich.markup import escape as escape_markup
 
-from deepagents_cli.config import console
-from deepagents_cli.media_utils import ImageData, VideoData
+from agent_tui.config import console
+from agent_tui.media_utils import ImageData, VideoData
 
 logger = logging.getLogger(__name__)
 

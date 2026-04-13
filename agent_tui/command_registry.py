@@ -12,7 +12,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from deepagents_cli.skills.load import ExtendedSkillMetadata
+    from agent_tui.skills.load import ExtendedSkillMetadata
 
 
 class BypassTier(StrEnum):

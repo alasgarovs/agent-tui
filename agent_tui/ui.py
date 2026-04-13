@@ -6,9 +6,9 @@ argparse tree.  It must stay lightweight — no SDK or langchain imports.
 
 from rich.markup import escape
 
-from deepagents_cli import theme
-from deepagents_cli._version import DOCS_URL, __version__
-from deepagents_cli.config import (
+from agent_tui import theme
+from agent_tui._version import DOCS_URL, __version__
+from agent_tui.config import (
     _get_editable_install_path,
     _is_editable_install,
     console,

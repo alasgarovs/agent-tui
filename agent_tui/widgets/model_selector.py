@@ -22,9 +22,9 @@ if TYPE_CHECKING:
 
     from textual.app import ComposeResult
 
-from deepagents_cli import theme
-from deepagents_cli.config import Glyphs, get_glyphs, is_ascii_mode
-from deepagents_cli.model_config import (
+from agent_tui import theme
+from agent_tui.config import Glyphs, get_glyphs, is_ascii_mode
+from agent_tui.model_config import (
     ModelConfig,
     ModelProfileEntry,
     clear_default_model,
@@ -635,7 +635,7 @@ class ModelSelectorScreen(ModalScreen[tuple[str, str] | None]):
         Returns:
             Styled `Content` for the 4-line footer.
         """
-        from deepagents_cli.textual_adapter import format_token_count
+        from agent_tui.textual_adapter import format_token_count
 
         if profile_entry is None or not profile_entry["profile"]:
             return Content.styled("Model profile not available :(\n\n\n", "dim")

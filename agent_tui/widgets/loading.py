@@ -9,8 +9,8 @@ from textual.containers import Horizontal
 from textual.content import Content
 from textual.widgets import Static
 
-from deepagents_cli.config import get_glyphs
-from deepagents_cli.formatting import format_duration
+from agent_tui.config import get_glyphs
+from agent_tui.formatting import format_duration
 
 if TYPE_CHECKING:
     from textual.app import ComposeResult

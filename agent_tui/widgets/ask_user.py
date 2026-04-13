@@ -17,14 +17,14 @@ if TYPE_CHECKING:
     from textual import events
     from textual.app import ComposeResult
 
-    from deepagents_cli._ask_user_types import (
+    from agent_tui._ask_user_types import (
         AskUserWidgetResult,
         Choice,
         Question,
     )
 
-from deepagents_cli import theme
-from deepagents_cli.config import (
+from agent_tui import theme
+from agent_tui.config import (
     get_glyphs,
     is_ascii_mode,
 )

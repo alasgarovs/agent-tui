@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
     from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-    from deepagents_cli.output import OutputFormat
+    from agent_tui.output import OutputFormat
 
 logger = logging.getLogger(__name__)
 
@@ -418,7 +418,7 @@ async def prewarm_thread_message_counts(limit: int | None = None) -> None:
         return
 
     try:
-        from deepagents_cli.model_config import load_thread_config
+        from agent_tui.model_config import load_thread_config
 
         cfg = load_thread_config()
         threads = await list_threads(limit=thread_limit, include_message_count=False)
@@ -1092,7 +1092,7 @@ async def list_threads_command(
             When `None`, reads from config (`~/.deepagents/config.toml`).
         output_format: Output format — `'text'` (Rich) or `'json'`.
     """
-    from deepagents_cli.model_config import (
+    from agent_tui.model_config import (
         load_thread_relative_time,
         load_thread_sort_order,
     )
@@ -1121,7 +1121,7 @@ async def list_threads_command(
         )
 
     if output_format == "json":
-        from deepagents_cli.output import write_json
+        from agent_tui.output import write_json
 
         write_json("threads list", list(threads))
         return
@@ -1129,8 +1129,8 @@ async def list_threads_command(
     from rich.markup import escape as escape_markup
     from rich.table import Table
 
-    from deepagents_cli import theme
-    from deepagents_cli.config import console
+    from agent_tui import theme
+    from agent_tui.config import console
 
     if not threads:
         filters = []
@@ -1219,7 +1219,7 @@ async def delete_thread_command(
     if dry_run:
         exists = await thread_exists(thread_id)
         if output_format == "json":
-            from deepagents_cli.output import write_json
+            from agent_tui.output import write_json
 
             write_json(
                 "threads delete",
@@ -1229,7 +1229,7 @@ async def delete_thread_command(
 
         from rich.markup import escape as escape_markup
 
-        from deepagents_cli.config import console
+        from agent_tui.config import console
 
         escaped_id = escape_markup(thread_id)
         if exists:
@@ -1242,15 +1242,15 @@ async def delete_thread_command(
     deleted = await delete_thread(thread_id)
 
     if output_format == "json":
-        from deepagents_cli.output import write_json
+        from agent_tui.output import write_json
 
         write_json("threads delete", {"thread_id": thread_id, "deleted": deleted})
         return
 
     from rich.markup import escape as escape_markup
 
-    from deepagents_cli import theme
-    from deepagents_cli.config import console
+    from agent_tui import theme
+    from agent_tui.config import console
 
     escaped_id = escape_markup(thread_id)
     if deleted:

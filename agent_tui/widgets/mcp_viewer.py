@@ -16,10 +16,10 @@ from textual.widgets import Static
 if TYPE_CHECKING:
     from textual.app import ComposeResult
 
-    from deepagents_cli.mcp_tools import MCPServerInfo
+    from agent_tui.mcp_tools import MCPServerInfo
 
-from deepagents_cli import theme
-from deepagents_cli.config import get_glyphs, is_ascii_mode
+from agent_tui import theme
+from agent_tui.config import get_glyphs, is_ascii_mode
 
 
 class MCPToolItem(Static):

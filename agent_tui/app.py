@@ -29,9 +29,9 @@ from textual.style import Style as TStyle
 from textual.theme import Theme
 from textual.widgets import Static
 
-from deepagents_cli import theme
-from deepagents_cli._cli_context import CLIContext
-from deepagents_cli._session_stats import (
+from agent_tui import theme
+from agent_tui._cli_context import CLIContext
+from agent_tui._session_stats import (
     SessionStats,
     SpinnerStatus,
     format_token_count,
@@ -41,17 +41,17 @@ from deepagents_cli._session_stats import (
 # All other config imports — settings, create_model, detect_provider, etc. — are
 # deferred to local imports at their call sites since they are only accessed
 # after user interaction begins.
-from deepagents_cli._version import CHANGELOG_URL, DOCS_URL
-from deepagents_cli.config import is_ascii_mode
-from deepagents_cli.widgets.chat_input import ChatInput
-from deepagents_cli.widgets.loading import LoadingWidget
-from deepagents_cli.widgets.message_store import (
+from agent_tui._version import CHANGELOG_URL, DOCS_URL
+from agent_tui.config import is_ascii_mode
+from agent_tui.widgets.chat_input import ChatInput
+from agent_tui.widgets.loading import LoadingWidget
+from agent_tui.widgets.message_store import (
     MessageData,
     MessageStore,
     MessageType,
     ToolStatus,
 )
-from deepagents_cli.widgets.messages import (
+from agent_tui.widgets.messages import (
     AppMessage,
     AssistantMessage,
     ErrorMessage,
@@ -60,8 +60,8 @@ from deepagents_cli.widgets.messages import (
     ToolCallMessage,
     UserMessage,
 )
-from deepagents_cli.widgets.status import StatusBar
-from deepagents_cli.widgets.welcome import WelcomeBanner
+from agent_tui.widgets.status import StatusBar
+from agent_tui.widgets.welcome import WelcomeBanner
 
 logger = logging.getLogger(__name__)
 _monotonic = time.monotonic
@@ -78,14 +78,14 @@ if TYPE_CHECKING:
     from textual.widget import Widget
     from textual.worker import Worker
 
-    from deepagents_cli._ask_user_types import AskUserWidgetResult, Question
-    from deepagents_cli.mcp_tools import MCPServerInfo
-    from deepagents_cli.remote_client import RemoteAgent
-    from deepagents_cli.server import ServerProcess
-    from deepagents_cli.skills.load import ExtendedSkillMetadata
-    from deepagents_cli.textual_adapter import TextualUIAdapter
-    from deepagents_cli.widgets.approval import ApprovalMenu
-    from deepagents_cli.widgets.ask_user import AskUserMenu
+    from agent_tui._ask_user_types import AskUserWidgetResult, Question
+    from agent_tui.mcp_tools import MCPServerInfo
+    from agent_tui.remote_client import RemoteAgent
+    from agent_tui.server import ServerProcess
+    from agent_tui.skills.load import ExtendedSkillMetadata
+    from agent_tui.textual_adapter import TextualUIAdapter
+    from agent_tui.widgets.approval import ApprovalMenu
+    from agent_tui.widgets.ask_user import AskUserMenu
 
 # iTerm2 Cursor Guide Workaround
 # ===============================
@@ -158,7 +158,7 @@ def _load_theme_preference() -> str:
     import tomllib
 
     try:
-        from deepagents_cli.model_config import DEFAULT_CONFIG_PATH
+        from agent_tui.model_config import DEFAULT_CONFIG_PATH
 
         if not DEFAULT_CONFIG_PATH.exists():
             return theme.DEFAULT_THEME
@@ -201,7 +201,7 @@ def save_theme_preference(name: str) -> bool:
 
         import tomli_w
 
-        from deepagents_cli.model_config import DEFAULT_CONFIG_PATH
+        from agent_tui.model_config import DEFAULT_CONFIG_PATH
 
         DEFAULT_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         if DEFAULT_CONFIG_PATH.exists():
@@ -380,7 +380,7 @@ def _new_thread_id() -> str:
     Returns:
         UUID7 string.
     """
-    from deepagents_cli.sessions import generate_thread_id
+    from agent_tui.sessions import generate_thread_id
 
     return generate_thread_id()
 
@@ -732,7 +732,7 @@ class DeepAgentsApp(App):
 
         # Lazily imported here to avoid pulling image dependencies into
         # argument parsing paths.
-        from deepagents_cli.input import MediaTracker
+        from agent_tui.input import MediaTracker
 
         self._image_tracker = MediaTracker()
 
@@ -752,7 +752,7 @@ class DeepAgentsApp(App):
         Returns:
             The `RemoteAgent` instance, or `None` for local agents.
         """
-        from deepagents_cli.remote_client import RemoteAgent
+        from agent_tui.remote_client import RemoteAgent
 
         return self._agent if isinstance(self._agent, RemoteAgent) else None
 
@@ -821,7 +821,7 @@ class DeepAgentsApp(App):
 
         # Apply any skill commands discovered before the widget was mounted
         if self._discovered_skills:
-            from deepagents_cli.command_registry import (
+            from agent_tui.command_registry import (
                 SLASH_COMMANDS,
                 build_skill_commands,
             )
@@ -903,7 +903,7 @@ class DeepAgentsApp(App):
         # Create UI adapter unconditionally — it only holds UI callbacks and
         # doesn't depend on the agent. The agent is injected later at
         # execute_task_textual() call time.
-        from deepagents_cli.textual_adapter import TextualUIAdapter
+        from agent_tui.textual_adapter import TextualUIAdapter
 
         self._ui_adapter = TextualUIAdapter(
             mount_message=self._mount_message,
@@ -942,7 +942,7 @@ class DeepAgentsApp(App):
 
         # Background update check and what's-new banner
         # (opt-out via env var or config.toml [update].check)
-        from deepagents_cli.update_check import is_update_check_enabled
+        from agent_tui.update_check import is_update_check_enabled
 
         if is_update_check_enabled():
             self.run_worker(
@@ -997,7 +997,7 @@ class DeepAgentsApp(App):
             )
 
     async def _init_session_state(self) -> None:
-        """Create session state in a thread (imports deepagents_cli.sessions)."""
+        """Create session state in a thread (imports agent_tui.sessions)."""
 
         def _create() -> TextualSessionState:
             return TextualSessionState(
@@ -1018,7 +1018,7 @@ class DeepAgentsApp(App):
     async def _check_optional_tools_background(self) -> None:
         """Check for optional tools in a thread and notify if missing."""
         try:
-            from deepagents_cli.main import (
+            from agent_tui.main import (
                 check_optional_tools,
                 format_tool_warning_tui,
             )
@@ -1055,7 +1055,7 @@ class DeepAgentsApp(App):
 
         Runs filesystem I/O in a thread to avoid blocking the event loop.
         """
-        from deepagents_cli.command_registry import SLASH_COMMANDS, build_skill_commands
+        from agent_tui.command_registry import SLASH_COMMANDS, build_skill_commands
 
         try:
             skills, roots = await asyncio.to_thread(self._discover_skills_and_roots)
@@ -1112,7 +1112,7 @@ class DeepAgentsApp(App):
         Returns:
             Tuple of `(skill metadata list, pre-resolved containment roots)`.
         """
-        from deepagents_cli.skills.invocation import discover_skills_and_roots
+        from agent_tui.skills.invocation import discover_skills_and_roots
 
         assistant_id = self._assistant_id or "agent"
         return discover_skills_and_roots(assistant_id)
@@ -1125,7 +1125,7 @@ class DeepAgentsApp(App):
         `self._assistant_id` / `self._server_kwargs`. Falls back to a fresh
         thread on any DB error.
         """
-        from deepagents_cli.sessions import (
+        from agent_tui.sessions import (
             find_similar_threads,
             generate_thread_id,
             get_most_recent,
@@ -1209,8 +1209,8 @@ class DeepAgentsApp(App):
         # does the heavy langchain import + SDK init and may refine them
         # (e.g., context_limit from the model profile).
         if self._model_kwargs is not None:
-            from deepagents_cli.config import create_model
-            from deepagents_cli.model_config import ModelConfigError, save_recent_model
+            from agent_tui.config import create_model
+            from agent_tui.model_config import ModelConfigError, save_recent_model
 
             try:
                 result = create_model(**self._model_kwargs)
@@ -1221,12 +1221,12 @@ class DeepAgentsApp(App):
             save_recent_model(f"{result.provider}:{result.model_name}")
             self._model_kwargs = None  # consumed
 
-        from deepagents_cli.server_manager import start_server_and_get_agent
+        from agent_tui.server_manager import start_server_and_get_agent
 
         coros: list[Any] = [start_server_and_get_agent(**self._server_kwargs)]  # type: ignore[arg-type]
 
         if self._mcp_preload_kwargs is not None:
-            from deepagents_cli.main import _preload_session_mcp_server_info
+            from agent_tui.main import _preload_session_mcp_server_info
 
             coros.append(_preload_session_mcp_server_info(**self._mcp_preload_kwargs))
 
@@ -1354,15 +1354,15 @@ class DeepAgentsApp(App):
         # we let the exception propagate (the worker catches it and logs
         # at WARNING). textual_adapter and update_check are included so
         # _post_paint_init's inline imports are dict lookups.
-        from deepagents_cli.clipboard import (
+        from agent_tui.clipboard import (
             copy_selection_to_clipboard,  # noqa: F401
         )
-        from deepagents_cli.command_registry import ALWAYS_IMMEDIATE  # noqa: F401
-        from deepagents_cli.config import settings  # noqa: F401
-        from deepagents_cli.hooks import dispatch_hook  # noqa: F401
-        from deepagents_cli.model_config import ModelSpec  # noqa: F401
-        from deepagents_cli.textual_adapter import TextualUIAdapter  # noqa: F401
-        from deepagents_cli.update_check import is_update_check_enabled  # noqa: F401
+        from agent_tui.command_registry import ALWAYS_IMMEDIATE  # noqa: F401
+        from agent_tui.config import settings  # noqa: F401
+        from agent_tui.hooks import dispatch_hook  # noqa: F401
+        from agent_tui.model_config import ModelSpec  # noqa: F401
+        from agent_tui.textual_adapter import TextualUIAdapter  # noqa: F401
+        from agent_tui.update_check import is_update_check_enabled  # noqa: F401
 
         try:
             # Heavy third-party deps deferred from textual_adapter /
@@ -1394,19 +1394,19 @@ class DeepAgentsApp(App):
         # Widgets deferred from app.py module level — a failure here indicates
         # a packaging or code bug (same as the block above), so we let
         # exceptions propagate.
-        from deepagents_cli.widgets.approval import ApprovalMenu  # noqa: F401
-        from deepagents_cli.widgets.ask_user import AskUserMenu  # noqa: F401
-        from deepagents_cli.widgets.model_selector import (
+        from agent_tui.widgets.approval import ApprovalMenu  # noqa: F401
+        from agent_tui.widgets.ask_user import AskUserMenu  # noqa: F401
+        from agent_tui.widgets.model_selector import (
             ModelSelectorScreen,  # noqa: F401
         )
-        from deepagents_cli.widgets.thread_selector import (  # noqa: F401
+        from agent_tui.widgets.thread_selector import (  # noqa: F401
             DeleteThreadConfirmScreen,
             ThreadSelectorScreen,
         )
 
     async def _prewarm_threads_cache(self) -> None:  # noqa: PLR6301  # Worker hook kept as instance method
         """Prewarm thread selector cache without blocking app startup."""
-        from deepagents_cli.sessions import (
+        from agent_tui.sessions import (
             get_thread_limit,
             prewarm_thread_message_counts,
         )
@@ -1416,7 +1416,7 @@ class DeepAgentsApp(App):
     async def _prewarm_model_caches(self) -> None:
         """Prewarm model discovery and profile caches without blocking startup."""
         try:
-            from deepagents_cli.model_config import (
+            from agent_tui.model_config import (
                 get_available_models,
                 get_model_profiles,
             )
@@ -1432,7 +1432,7 @@ class DeepAgentsApp(App):
         """Check PyPI for a newer version and optionally auto-update."""
         # Phase 1: version check (benign failure)
         try:
-            from deepagents_cli.update_check import (
+            from agent_tui.update_check import (
                 is_auto_update_enabled,
                 is_update_available,
                 upgrade_command,
@@ -1449,10 +1449,10 @@ class DeepAgentsApp(App):
 
         # Phase 2: auto-update or notify (failures surfaced to user)
         try:
-            from deepagents_cli._version import __version__ as cli_version
+            from agent_tui._version import __version__ as cli_version
 
             if is_auto_update_enabled():
-                from deepagents_cli.update_check import perform_upgrade
+                from agent_tui.update_check import perform_upgrade
 
                 self.notify(
                     f"Updating to v{latest}...",
@@ -1495,7 +1495,7 @@ class DeepAgentsApp(App):
     async def _show_whats_new(self) -> None:
         """Show a 'what's new' banner on the first launch after an upgrade."""
         try:
-            from deepagents_cli.update_check import should_show_whats_new
+            from agent_tui.update_check import should_show_whats_new
 
             if not await asyncio.to_thread(should_show_whats_new):
                 return
@@ -1504,8 +1504,8 @@ class DeepAgentsApp(App):
             return
 
         try:
-            from deepagents_cli._version import __version__ as cli_version
-            from deepagents_cli.config import _is_editable_install
+            from agent_tui._version import __version__ as cli_version
+            from agent_tui.config import _is_editable_install
 
             if await asyncio.to_thread(_is_editable_install):
                 heading = f"Now running v{cli_version}"
@@ -1520,8 +1520,8 @@ class DeepAgentsApp(App):
             return
 
         try:
-            from deepagents_cli._version import __version__ as cli_version
-            from deepagents_cli.update_check import mark_version_seen
+            from agent_tui._version import __version__ as cli_version
+            from agent_tui.update_check import mark_version_seen
 
             await asyncio.to_thread(mark_version_seen, cli_version)
         except Exception:
@@ -1531,7 +1531,7 @@ class DeepAgentsApp(App):
         """Handle the `/update` slash command — check for and install updates."""
         await self._mount_message(UserMessage("/update"))
         try:
-            from deepagents_cli.update_check import (
+            from agent_tui.update_check import (
                 is_update_available,
                 perform_upgrade,
                 upgrade_command,
@@ -1545,7 +1545,7 @@ class DeepAgentsApp(App):
                 await self._mount_message(AppMessage("Already on the latest version."))
                 return
 
-            from deepagents_cli._version import __version__ as cli_version
+            from agent_tui._version import __version__ as cli_version
 
             await self._mount_message(
                 AppMessage(
@@ -1574,8 +1574,8 @@ class DeepAgentsApp(App):
     async def _handle_auto_update_toggle(self) -> None:
         """Handle the `/auto-update` slash command — persist toggle immediately."""
         try:
-            from deepagents_cli.config import _is_editable_install
-            from deepagents_cli.update_check import (
+            from agent_tui.config import _is_editable_install
+            from agent_tui.update_check import (
                 is_auto_update_enabled,
                 set_auto_update,
             )
@@ -1861,7 +1861,7 @@ class DeepAgentsApp(App):
         Returns:
             A Future that resolves to the user's decision.
         """
-        from deepagents_cli.config import (
+        from agent_tui.config import (
             SHELL_TOOL_NAMES,
             is_shell_command_allowed,
             settings,
@@ -1913,7 +1913,7 @@ class DeepAgentsApp(App):
                 await asyncio.sleep(0.1)
 
         # Create menu with unique ID to avoid conflicts
-        from deepagents_cli.widgets.approval import ApprovalMenu
+        from agent_tui.widgets.approval import ApprovalMenu
 
         unique_id = f"approval-menu-{uuid.uuid4().hex[:8]}"
         menu = ApprovalMenu(action_requests, assistant_id, id=unique_id)
@@ -2099,7 +2099,7 @@ class DeepAgentsApp(App):
                     break
                 await asyncio.sleep(0.1)
 
-        from deepagents_cli.widgets.ask_user import AskUserMenu
+        from agent_tui.widgets.ask_user import AskUserMenu
 
         unique_id = f"ask-user-menu-{uuid.uuid4().hex[:8]}"
         menu = AskUserMenu(questions, id=unique_id)
@@ -2214,7 +2214,7 @@ class DeepAgentsApp(App):
         Returns:
             `True` if the command should bypass the busy-state queue.
         """
-        from deepagents_cli.command_registry import (
+        from agent_tui.command_registry import (
             BYPASS_WHEN_CONNECTING,
             IMMEDIATE_UI,
             SIDE_EFFECT_FREE,
@@ -2237,12 +2237,12 @@ class DeepAgentsApp(App):
         # Reset quit pending state on any input
         self._quit_pending = False
 
-        from deepagents_cli.hooks import dispatch_hook
+        from agent_tui.hooks import dispatch_hook
 
         await dispatch_hook("user.prompt", {})
 
         # /quit and /q always execute immediately, even mid-thread-switch.
-        from deepagents_cli.command_registry import ALWAYS_IMMEDIATE
+        from agent_tui.command_registry import ALWAYS_IMMEDIATE
 
         if mode == "command" and value.lower().strip() in ALWAYS_IMMEDIATE:
             self.exit()
@@ -2524,7 +2524,7 @@ class DeepAgentsApp(App):
         Returns:
             `Content` with a clickable thread ID, or a plain string.
         """
-        from deepagents_cli.config import build_langsmith_thread_url
+        from agent_tui.config import build_langsmith_thread_url
 
         try:
             url = await asyncio.wait_for(
@@ -2553,7 +2553,7 @@ class DeepAgentsApp(App):
         Args:
             command: The raw command text (displayed as user message).
         """
-        from deepagents_cli.config import build_langsmith_thread_url
+        from agent_tui.config import build_langsmith_thread_url
 
         if not self._session_state:
             await self._mount_message(UserMessage(command))
@@ -2620,7 +2620,7 @@ class DeepAgentsApp(App):
         Args:
             command: The slash command (including /)
         """
-        from deepagents_cli.config import newline_shortcut, settings
+        from agent_tui.config import newline_shortcut, settings
 
         cmd = command.lower().strip()
 
@@ -2656,13 +2656,13 @@ class DeepAgentsApp(App):
             await self._mount_message(UserMessage(command))
             # Show CLI and SDK package versions
             try:
-                from deepagents_cli._version import (
+                from agent_tui._version import (
                     __version__ as cli_version,
                 )
 
                 cli_line = f"deepagents-cli version: {cli_version}"
             except ImportError:
-                logger.debug("deepagents_cli._version module not found")
+                logger.debug("agent_tui._version module not found")
                 cli_line = "deepagents-cli version: unknown"
             except Exception:
                 logger.warning("Unexpected error looking up CLI version", exc_info=True)
@@ -2830,7 +2830,7 @@ class DeepAgentsApp(App):
             try:
                 changes = settings.reload_from_environment()
 
-                from deepagents_cli.model_config import clear_caches
+                from agent_tui.model_config import clear_caches
 
                 clear_caches()
             except (OSError, ValueError):
@@ -2911,8 +2911,8 @@ class DeepAgentsApp(App):
             args: Optional user request to append after the skill body.
             command: Original slash command text for UI echo, if any.
         """
-        from deepagents_cli.skills.invocation import build_skill_invocation_envelope
-        from deepagents_cli.skills.load import load_skill_content
+        from agent_tui.skills.invocation import build_skill_invocation_envelope
+        from agent_tui.skills.load import load_skill_content
 
         normalized_name = skill_name.strip().lower()
 
@@ -3038,7 +3038,7 @@ class DeepAgentsApp(App):
         Args:
             command: The full command string (e.g., `/skill:web-research find X`).
         """
-        from deepagents_cli.command_registry import parse_skill_command
+        from agent_tui.command_registry import parse_skill_command
 
         skill_name, args = parse_skill_command(command)
         await self._invoke_skill(skill_name, args, command=command)
@@ -3080,7 +3080,7 @@ class DeepAgentsApp(App):
             A string like `"20.0K (10% of 200.0K)"` or
             `"last 6 messages"`, or `None` if the budget cannot be determined.
         """
-        from deepagents_cli.config import create_model, settings
+        from agent_tui.config import create_model, settings
 
         try:
             from deepagents.middleware.summarization import (
@@ -3093,7 +3093,7 @@ class DeepAgentsApp(App):
                 profile_overrides=self._profile_override,
             )
             defaults = compute_summarization_defaults(result.model)
-            from deepagents_cli.offload import format_offload_limit
+            from agent_tui.offload import format_offload_limit
 
             return format_offload_limit(
                 defaults["keep"],
@@ -3105,8 +3105,8 @@ class DeepAgentsApp(App):
 
     async def _handle_offload(self) -> None:
         """Offload older messages to free context window space."""
-        from deepagents_cli.config import settings
-        from deepagents_cli.offload import (
+        from agent_tui.config import settings
+        from agent_tui.offload import (
             OffloadModelError,
             OffloadThresholdNotMet,
             perform_offload,
@@ -3141,7 +3141,7 @@ class DeepAgentsApp(App):
         # Prevent concurrent user input while offload modifies state
         self._agent_running = True
         try:
-            from deepagents_cli.hooks import dispatch_hook
+            from agent_tui.hooks import dispatch_hook
 
             await dispatch_hook("context.offload", {})
             # Keep old hook name for backward compatibility
@@ -3215,7 +3215,7 @@ class DeepAgentsApp(App):
             )
 
             self._on_tokens_update(result.tokens_after)
-            from deepagents_cli.textual_adapter import _persist_context_tokens
+            from agent_tui.textual_adapter import _persist_context_tokens
 
             await _persist_context_tokens(self._agent, config, result.tokens_after)
 
@@ -3303,7 +3303,7 @@ class DeepAgentsApp(App):
         # Caller ensures _ui_adapter is set (checked in _handle_user_message)
         if self._ui_adapter is None:
             return
-        from deepagents_cli.textual_adapter import execute_task_textual
+        from agent_tui.textual_adapter import execute_task_textual
 
         # Create the stats object up-front and store on the app so
         # exit() can merge it synchronously if the worker is cancelled
@@ -3631,7 +3631,7 @@ class DeepAgentsApp(App):
         try:
             from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-            from deepagents_cli.sessions import get_db_path
+            from agent_tui.sessions import get_db_path
 
             db_path = str(get_db_path())
             config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
@@ -4109,7 +4109,7 @@ class DeepAgentsApp(App):
         7. If queued messages exist, pop the last one (LIFO)
         8. If agent is running, interrupt it
         """
-        from deepagents_cli.widgets.thread_selector import ThreadSelectorScreen
+        from agent_tui.widgets.thread_selector import ThreadSelectorScreen
 
         if (
             isinstance(self.screen, ThreadSelectorScreen)
@@ -4169,7 +4169,7 @@ class DeepAgentsApp(App):
 
     def action_quit_app(self) -> None:
         """Handle quit action (Ctrl+D)."""
-        from deepagents_cli.widgets.thread_selector import (
+        from agent_tui.widgets.thread_selector import (
             DeleteThreadConfirmScreen,
             ThreadSelectorScreen,
         )
@@ -4228,7 +4228,7 @@ class DeepAgentsApp(App):
 
         # Dispatch synchronously — the event loop is about to be torn down by
         # super().exit(), so an async task would never complete.
-        from deepagents_cli.hooks import _dispatch_hook_sync, _load_hooks
+        from agent_tui.hooks import _dispatch_hook_sync, _load_hooks
 
         hooks = _load_hooks()
         if hooks:
@@ -4250,7 +4250,7 @@ class DeepAgentsApp(App):
         web search, URL fetch) run without prompting. Updates the status
         bar indicator and session state.
         """
-        from deepagents_cli.widgets.thread_selector import ThreadSelectorScreen
+        from agent_tui.widgets.thread_selector import ThreadSelectorScreen
 
         if isinstance(self.screen, ThreadSelectorScreen):
             self.screen.action_focus_previous_filter()
@@ -4343,7 +4343,7 @@ class DeepAgentsApp(App):
 
     async def action_open_editor(self) -> None:
         """Open the current prompt text in an external editor ($VISUAL/$EDITOR)."""
-        from deepagents_cli.editor import open_in_editor
+        from agent_tui.editor import open_in_editor
 
         chat_input = self._chat_input
         if not chat_input or not chat_input._text_area:
@@ -4412,7 +4412,7 @@ class DeepAgentsApp(App):
 
     def on_mouse_up(self, event: MouseUp) -> None:  # noqa: ARG002  # Textual event handler signature
         """Copy selection to clipboard on mouse release."""
-        from deepagents_cli.clipboard import copy_selection_to_clipboard
+        from agent_tui.clipboard import copy_selection_to_clipboard
 
         copy_selection_to_clipboard(self)
 
@@ -4432,8 +4432,8 @@ class DeepAgentsApp(App):
         """
         from functools import partial
 
-        from deepagents_cli.config import settings
-        from deepagents_cli.widgets.model_selector import ModelSelectorScreen
+        from agent_tui.config import settings
+        from agent_tui.widgets.model_selector import ModelSelectorScreen
 
         def handle_result(result: tuple[str, str] | None) -> None:
             """Handle the model selector result."""
@@ -4506,7 +4506,7 @@ class DeepAgentsApp(App):
 
     async def _show_theme_selector(self) -> None:
         """Show interactive theme selector as a modal screen."""
-        from deepagents_cli.widgets.theme_selector import ThemeSelectorScreen
+        from agent_tui.widgets.theme_selector import ThemeSelectorScreen
 
         # Capture scroll state.  The submit handler may have already caused
         # a reflow that re-anchored to the bottom, so we save the *current*
@@ -4560,8 +4560,8 @@ class DeepAgentsApp(App):
 
     async def _show_notification_settings(self) -> None:
         """Show notification settings modal."""
-        from deepagents_cli.model_config import is_warning_suppressed
-        from deepagents_cli.widgets.notification_settings import (
+        from agent_tui.model_config import is_warning_suppressed
+        from agent_tui.widgets.notification_settings import (
             WARNING_TOGGLES,
             NotificationSettingsScreen,
         )
@@ -4590,7 +4590,7 @@ class DeepAgentsApp(App):
 
     async def _show_mcp_viewer(self) -> None:
         """Show read-only MCP server/tool viewer as a modal screen."""
-        from deepagents_cli.widgets.mcp_viewer import MCPViewerScreen
+        from agent_tui.widgets.mcp_viewer import MCPViewerScreen
 
         screen = MCPViewerScreen(server_info=self._mcp_server_info or [])
 
@@ -4604,8 +4604,8 @@ class DeepAgentsApp(App):
         """Show interactive thread selector as a modal screen."""
         from functools import partial
 
-        from deepagents_cli.sessions import get_cached_threads, get_thread_limit
-        from deepagents_cli.widgets.thread_selector import ThreadSelectorScreen
+        from agent_tui.sessions import get_cached_threads, get_thread_limit
+        from agent_tui.widgets.thread_selector import ThreadSelectorScreen
 
         current = self._session_state.thread_id if self._session_state else None
         thread_limit = get_thread_limit()
@@ -4793,8 +4793,8 @@ class DeepAgentsApp(App):
                 for auto-detection.
             extra_kwargs: Extra constructor kwargs from `--model-params`.
         """
-        from deepagents_cli.config import create_model, detect_provider, settings
-        from deepagents_cli.model_config import (
+        from agent_tui.config import create_model, detect_provider, settings
+        from agent_tui.model_config import (
             ModelSpec,
             get_credential_env_var,
             has_provider_credentials,
@@ -4915,8 +4915,8 @@ class DeepAgentsApp(App):
         Args:
             model_spec: The model specification (e.g., `'anthropic:claude-opus-4-6'`).
         """
-        from deepagents_cli.config import detect_provider
-        from deepagents_cli.model_config import ModelSpec, save_default_model
+        from agent_tui.config import detect_provider
+        from agent_tui.model_config import ModelSpec, save_default_model
 
         model_spec = model_spec.removeprefix(":")
 
@@ -4941,7 +4941,7 @@ class DeepAgentsApp(App):
         After clearing, future launches fall back to `[models].recent` or
         environment auto-detection.
         """
-        from deepagents_cli.model_config import clear_default_model
+        from agent_tui.model_config import clear_default_model
 
         if await asyncio.to_thread(clear_default_model):
             await self._mount_message(

@@ -26,15 +26,15 @@ if TYPE_CHECKING:
     from textual.app import ComposeResult
     from textual.events import Click, Key
 
-    from deepagents_cli.sessions import ThreadInfo
+    from agent_tui.sessions import ThreadInfo
 
-from deepagents_cli import theme
-from deepagents_cli.config import (
+from agent_tui import theme
+from agent_tui.config import (
     build_langsmith_thread_url,
     get_glyphs,
     is_ascii_mode,
 )
-from deepagents_cli.widgets._links import open_style_link
+from agent_tui.widgets._links import open_style_link
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,7 @@ def _get_format_fns() -> _FormatFns:
     global _format_fns_cache  # noqa: PLW0603
     if _format_fns_cache is not None:
         return _format_fns_cache
-    from deepagents_cli.sessions import (
+    from agent_tui.sessions import (
         format_path,
         format_relative_timestamp,
         format_timestamp,
@@ -686,7 +686,7 @@ class ThreadSelectorScreen(ModalScreen[str | None]):
         self._filter_controls: list[Input | Checkbox] | None = None
         self._cell_text: dict[tuple[str, str], str] = {}
 
-        from deepagents_cli.model_config import load_thread_config
+        from agent_tui.model_config import load_thread_config
 
         cfg = load_thread_config()
         self._columns = dict(cfg.columns)
@@ -781,7 +781,7 @@ class ThreadSelectorScreen(ModalScreen[str | None]):
         """Return the resolved thread limit for display purposes."""
         if self._thread_limit is not None:
             return self._thread_limit
-        from deepagents_cli.sessions import get_thread_limit
+        from agent_tui.sessions import get_thread_limit
 
         return get_thread_limit()
 
@@ -1012,7 +1012,7 @@ class ThreadSelectorScreen(ModalScreen[str | None]):
                 return
             self._relative_time = event.value
 
-            from deepagents_cli.model_config import save_thread_relative_time
+            from agent_tui.model_config import save_thread_relative_time
 
             self.run_worker(
                 asyncio.to_thread(save_thread_relative_time, event.value),
@@ -1034,7 +1034,7 @@ class ThreadSelectorScreen(ModalScreen[str | None]):
         if event.value and column_key in {"messages", "initial_prompt"}:
             self._schedule_checkpoint_enrichment()
 
-        from deepagents_cli.model_config import save_thread_columns
+        from agent_tui.model_config import save_thread_columns
 
         snapshot = dict(self._columns)
         self.run_worker(
@@ -1279,7 +1279,7 @@ class ThreadSelectorScreen(ModalScreen[str | None]):
         Returns:
             Tuple indicating whether message counts and prompts were requested.
         """
-        from deepagents_cli.sessions import populate_thread_checkpoint_details
+        from agent_tui.sessions import populate_thread_checkpoint_details
 
         load_counts, load_prompts = self._pending_checkpoint_fields()
         if not load_counts and not load_prompts:
@@ -1325,7 +1325,7 @@ class ThreadSelectorScreen(ModalScreen[str | None]):
 
     async def _load_threads(self) -> None:
         """Load thread rows first, then kick off background enrichment."""
-        from deepagents_cli.sessions import (
+        from agent_tui.sessions import (
             apply_cached_thread_initial_prompts,
             apply_cached_thread_message_counts,
             list_threads,
@@ -1336,7 +1336,7 @@ class ThreadSelectorScreen(ModalScreen[str | None]):
         try:
             limit = self._thread_limit
             if limit is None:
-                from deepagents_cli.sessions import get_thread_limit
+                from agent_tui.sessions import get_thread_limit
 
                 limit = get_thread_limit()
             sort_by = "updated" if self._sort_by_updated else "created"
@@ -1789,7 +1789,7 @@ class ThreadSelectorScreen(ModalScreen[str | None]):
         """Save sort-order preference to config, notifying on failure."""
 
         async def _save() -> None:
-            from deepagents_cli.model_config import save_thread_sort_order
+            from agent_tui.model_config import save_thread_sort_order
 
             ok = await asyncio.to_thread(save_thread_sort_order, order)
             if not ok:
@@ -1843,7 +1843,7 @@ class ThreadSelectorScreen(ModalScreen[str | None]):
         Args:
             thread_id: Thread ID to delete.
         """
-        from deepagents_cli.sessions import delete_thread
+        from agent_tui.sessions import delete_thread
 
         preferred_thread_id: str | None = None
         if self._selected_index + 1 < len(self._filtered_threads):

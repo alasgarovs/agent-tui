@@ -23,13 +23,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from deepagents_cli.app import AppResult
-    from deepagents_cli.mcp_tools import MCPServerInfo
+    from agent_tui.app import AppResult
+    from agent_tui.mcp_tools import MCPServerInfo
 
 # Suppress Pydantic v1 compatibility warnings from langchain on Python 3.14+
 warnings.filterwarnings("ignore", message=".*Pydantic V1.*", category=UserWarning)
 
-from deepagents_cli._version import __version__
+from agent_tui._version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -135,13 +135,13 @@ def check_optional_tools(*, config_path: Path | None = None) -> list[str]:
     Returns:
         List of missing tool names (e.g. `["ripgrep"]`).
     """
-    from deepagents_cli.model_config import is_warning_suppressed
+    from agent_tui.model_config import is_warning_suppressed
 
     missing: list[str] = []
     if shutil.which("rg") is None and not is_warning_suppressed("ripgrep", config_path):
         missing.append("ripgrep")
 
-    from deepagents_cli.config import settings
+    from agent_tui.config import settings
 
     if not settings.has_tavily and not is_warning_suppressed("tavily", config_path):
         missing.append("tavily")
@@ -228,8 +228,8 @@ async def _preload_session_mcp_server_info(
     if no_mcp:
         return None
 
-    from deepagents_cli.mcp_tools import resolve_and_load_mcp_tools
-    from deepagents_cli.project_utils import ProjectContext
+    from agent_tui.mcp_tools import resolve_and_load_mcp_tools
+    from agent_tui.project_utils import ProjectContext
 
     session_manager = None
     try:
@@ -262,9 +262,9 @@ def parse_args() -> argparse.Namespace:
     Returns:
         Parsed arguments namespace.
     """
-    from deepagents_cli.deploy import setup_deploy_parsers
-    from deepagents_cli.output import add_json_output_arg
-    from deepagents_cli.skills import setup_skills_parser
+    from agent_tui.deploy import setup_deploy_parsers
+    from agent_tui.output import add_json_output_arg
+    from agent_tui.skills import setup_skills_parser
 
     # Factory that builds an argparse Action whose __call__ invokes the
     # supplied *help_fn* instead of argparse's default help text.  Each
@@ -321,7 +321,7 @@ def parse_args() -> argparse.Namespace:
     # parse time for the common non-help path.
     def _lazy_help(fn_name: str) -> Callable[[], None]:
         def _show() -> None:
-            from deepagents_cli import ui
+            from agent_tui import ui
 
             getattr(ui, fn_name)()
 
@@ -740,13 +740,13 @@ async def run_textual_cli_async(
     """
     from rich.text import Text
 
-    from deepagents_cli.app import AppResult, run_textual_app
-    from deepagents_cli.config import (
+    from agent_tui.app import AppResult, run_textual_app
+    from agent_tui.config import (
         _get_default_model_spec,
         detect_provider,
         settings,
     )
-    from deepagents_cli.model_config import ModelConfigError, ModelSpec
+    from agent_tui.model_config import ModelConfigError, ModelSpec
 
     # Resolve display-name cheaply (<1ms, no langchain) so the status
     # bar can show the model on first paint. The expensive create_model()
@@ -757,7 +757,7 @@ async def run_textual_cli_async(
     except ModelConfigError as e:
         from rich.markup import escape
 
-        from deepagents_cli.config import console
+        from agent_tui.config import console
 
         console.print(f"[bold red]Error:[/bold red] {escape(str(e))}", highlight=False)
         return AppResult(return_code=1, thread_id=None)
@@ -820,7 +820,7 @@ async def run_textual_cli_async(
         )
     except Exception as e:
         logger.debug("App error", exc_info=True)
-        from deepagents_cli.config import console
+        from agent_tui.config import console
 
         error_text = Text("Application error: ", style="red")
         error_text.append(str(e))
@@ -860,10 +860,10 @@ async def _run_acp_cli_async(
     Returns:
         Exit code for ACP mode.
     """
-    from deepagents_cli.agent import create_cli_agent, load_async_subagents
-    from deepagents_cli.config import create_model, settings
-    from deepagents_cli.model_config import ModelConfigError, save_recent_model
-    from deepagents_cli.tools import fetch_url, web_search
+    from agent_tui.agent import create_cli_agent, load_async_subagents
+    from agent_tui.config import create_model, settings
+    from agent_tui.model_config import ModelConfigError, save_recent_model
+    from agent_tui.tools import fetch_url, web_search
 
     try:
         model_result = create_model(
@@ -887,7 +887,7 @@ async def _run_acp_cli_async(
     mcp_session_manager = None
     mcp_server_info = None
     try:
-        from deepagents_cli.mcp_tools import resolve_and_load_mcp_tools
+        from agent_tui.mcp_tools import resolve_and_load_mcp_tools
 
         (
             mcp_tools,
@@ -993,7 +993,7 @@ def apply_stdin_pipe(args: argparse.Namespace) -> None:
     Args:
         args: The parsed argument namespace (mutated in place).
     """
-    from deepagents_cli.config import console
+    from agent_tui.config import console
 
     explicit_stdin = args.stdin
 
@@ -1117,7 +1117,7 @@ def _print_session_stats(stats: Any, console: Any) -> None:  # noqa: ANN401
         stats: The cumulative session stats from the Textual app.
         console: Rich console for output.
     """
-    from deepagents_cli.textual_adapter import SessionStats, print_usage_table
+    from agent_tui.textual_adapter import SessionStats, print_usage_table
 
     if not isinstance(stats, SessionStats):
         return
@@ -1139,13 +1139,13 @@ def _check_mcp_project_trust(*, trust_flag: bool = False) -> bool | None:
         `True` to allow project stdio servers, `False` to deny, or `None`
             when no project stdio servers exist.
     """
-    from deepagents_cli.mcp_tools import (
+    from agent_tui.mcp_tools import (
         classify_discovered_configs,
         discover_mcp_configs,
         extract_stdio_server_commands,
         load_mcp_config_lenient,
     )
-    from deepagents_cli.project_utils import ProjectContext
+    from agent_tui.project_utils import ProjectContext
 
     try:
         project_context = ProjectContext.from_user_cwd(Path.cwd())
@@ -1171,7 +1171,7 @@ def _check_mcp_project_trust(*, trust_flag: bool = False) -> bool | None:
         return True
 
     # Check trust store
-    from deepagents_cli.mcp_trust import (
+    from agent_tui.mcp_trust import (
         compute_config_fingerprint,
         is_project_mcp_trusted,
         trust_project_mcp,
@@ -1248,7 +1248,7 @@ def cli_main() -> None:
 
         # Import console/settings AFTER arg parsing so --help (which exits
         # inside parse_args) never pays the settings bootstrap cost.
-        from deepagents_cli.config import console, settings
+        from agent_tui.config import console, settings
 
         model_params: dict[str, Any] | None = None
         raw_kwargs = getattr(args, "model_params", None)
@@ -1325,7 +1325,7 @@ def cli_main() -> None:
 
         # Apply shell-allow-list from command line if provided (overrides env var)
         if args.shell_allow_list:
-            from deepagents_cli.config import parse_shell_allow_list
+            from agent_tui.config import parse_shell_allow_list
 
             settings.shell_allow_list = parse_shell_allow_list(args.shell_allow_list)
 
@@ -1382,8 +1382,8 @@ def cli_main() -> None:
             try:
                 from rich.markup import escape
 
-                from deepagents_cli._version import __version__ as cli_version
-                from deepagents_cli.update_check import (
+                from agent_tui._version import __version__ as cli_version
+                from agent_tui.update_check import (
                     is_update_available,
                     perform_upgrade,
                     upgrade_command,
@@ -1428,7 +1428,7 @@ def cli_main() -> None:
 
         # Handle --default-model / --clear-default-model (headless, no session)
         if args.clear_default_model:
-            from deepagents_cli.model_config import clear_default_model
+            from agent_tui.model_config import clear_default_model
 
             if clear_default_model():
                 console.print("Default model cleared.")
@@ -1441,7 +1441,7 @@ def cli_main() -> None:
             sys.exit(0)
 
         if args.default_model is not None:
-            from deepagents_cli.model_config import (
+            from agent_tui.model_config import (
                 ModelConfig,
                 save_default_model,
             )
@@ -1456,8 +1456,8 @@ def cli_main() -> None:
 
             model_spec = args.default_model
             # Auto-detect provider for bare model names
-            from deepagents_cli.config import detect_provider
-            from deepagents_cli.model_config import ModelSpec
+            from agent_tui.config import detect_provider
+            from agent_tui.model_config import ModelSpec
 
             parsed = ModelSpec.try_parse(model_spec)
             if not parsed:
@@ -1478,12 +1478,12 @@ def cli_main() -> None:
         output_format = getattr(args, "output_format", "text")
 
         if args.command == "help":
-            from deepagents_cli.ui import show_help
+            from agent_tui.ui import show_help
 
             show_help()
         elif args.command == "agents":
-            from deepagents_cli.agent import list_agents, reset_agent
-            from deepagents_cli.ui import show_agents_help
+            from agent_tui.agent import list_agents, reset_agent
+            from agent_tui.ui import show_agents_help
 
             # "ls" is an argparse alias for "list"
             if args.agents_command in {"list", "ls"}:
@@ -1498,27 +1498,27 @@ def cli_main() -> None:
             else:
                 show_agents_help()
         elif args.command == "skills":
-            from deepagents_cli.skills import execute_skills_command
+            from agent_tui.skills import execute_skills_command
 
             execute_skills_command(args)
         elif args.command == "init":
-            from deepagents_cli.deploy import execute_init_command
+            from agent_tui.deploy import execute_init_command
 
             execute_init_command(args)
         elif args.command == "dev":
-            from deepagents_cli.deploy import execute_dev_command
+            from agent_tui.deploy import execute_dev_command
 
             execute_dev_command(args)
         elif args.command == "deploy":
-            from deepagents_cli.deploy import execute_deploy_command
+            from agent_tui.deploy import execute_deploy_command
 
             execute_deploy_command(args)
         elif args.command == "threads":
-            from deepagents_cli.sessions import (
+            from agent_tui.sessions import (
                 delete_thread_command,
                 list_threads_command,
             )
-            from deepagents_cli.ui import show_threads_help
+            from agent_tui.ui import show_threads_help
 
             # "ls" is an argparse alias for "list" — argparse stores the
             # alias as-is in the namespace, so we must match both values.
@@ -1566,7 +1566,7 @@ def cli_main() -> None:
                     logger.debug("Failed to check for optional tools", exc_info=True)
             # Validate sandbox provider deps before spawning server subprocess
             if args.sandbox and args.sandbox not in {"none", "langsmith"}:
-                from deepagents_cli.integrations.sandbox_factory import (
+                from agent_tui.integrations.sandbox_factory import (
                     verify_sandbox_deps,
                 )
 
@@ -1579,7 +1579,7 @@ def cli_main() -> None:
                     sys.exit(1)
 
             # Non-interactive mode - execute single task and exit
-            from deepagents_cli.non_interactive import run_non_interactive
+            from agent_tui.non_interactive import run_non_interactive
 
             exit_code = asyncio.run(
                 run_non_interactive(
@@ -1605,10 +1605,10 @@ def cli_main() -> None:
             from rich.style import Style
             from rich.text import Text
 
-            from deepagents_cli.config import (
+            from agent_tui.config import (
                 build_langsmith_thread_url,
             )
-            from deepagents_cli.sessions import (
+            from agent_tui.sessions import (
                 generate_thread_id,
                 thread_exists,
             )
@@ -1621,7 +1621,7 @@ def cli_main() -> None:
 
             # Validate sandbox provider deps before spawning server subprocess
             if args.sandbox and args.sandbox not in {"none", "langsmith"}:
-                from deepagents_cli.integrations.sandbox_factory import (
+                from agent_tui.integrations.sandbox_factory import (
                     verify_sandbox_deps,
                 )
 
@@ -1702,7 +1702,7 @@ def cli_main() -> None:
             # Warn about available update on exit
             try:
                 if result.update_available[0]:
-                    from deepagents_cli.update_check import (
+                    from agent_tui.update_check import (
                         is_auto_update_enabled,
                         upgrade_command,
                     )

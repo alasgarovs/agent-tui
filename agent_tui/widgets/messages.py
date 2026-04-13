@@ -18,18 +18,18 @@ from textual.events import Click
 from textual.reactive import var
 from textual.widgets import Static
 
-from deepagents_cli import theme
-from deepagents_cli.config import (
+from agent_tui import theme
+from agent_tui.config import (
     MODE_DISPLAY_GLYPHS,
     PREFIX_TO_MODE,
     get_glyphs,
     is_ascii_mode,
 )
-from deepagents_cli.formatting import format_duration
-from deepagents_cli.input import EMAIL_PREFIX_PATTERN, INPUT_HIGHLIGHT_PATTERN
-from deepagents_cli.tool_display import format_tool_display
-from deepagents_cli.widgets._links import open_style_link
-from deepagents_cli.widgets.diff import compose_diff_lines
+from agent_tui.formatting import format_duration
+from agent_tui.input import EMAIL_PREFIX_PATTERN, INPUT_HIGHLIGHT_PATTERN
+from agent_tui.tool_display import format_tool_display
+from agent_tui.widgets._links import open_style_link
+from agent_tui.widgets.diff import compose_diff_lines
 
 if TYPE_CHECKING:
     from textual.app import ComposeResult

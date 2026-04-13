@@ -14,8 +14,8 @@ from textual.widgets.option_list import Option
 if TYPE_CHECKING:
     from textual.app import ComposeResult
 
-from deepagents_cli import theme
-from deepagents_cli.config import get_glyphs, is_ascii_mode
+from agent_tui import theme
+from agent_tui.config import get_glyphs, is_ascii_mode
 
 logger = logging.getLogger(__name__)
 

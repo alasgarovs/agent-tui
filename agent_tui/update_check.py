@@ -22,12 +22,12 @@ from typing import TYPE_CHECKING, Literal
 
 from packaging.version import InvalidVersion, Version
 
-from deepagents_cli._version import PYPI_URL, USER_AGENT, __version__
+from agent_tui._version import PYPI_URL, USER_AGENT, __version__
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-from deepagents_cli.model_config import DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_PATH
+from agent_tui.model_config import DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +233,7 @@ def detect_install_method() -> InstallMethod:
         The detected install method: `'uv'`, `'brew'`, `'pip'`, or `'unknown'`
             (editable/dev installs).
     """
-    from deepagents_cli.config import _is_editable_install
+    from agent_tui.config import _is_editable_install
 
     prefix = sys.prefix
     # uv tool installs live under ~/.local/share/uv/tools/
@@ -331,7 +331,7 @@ def is_update_check_enabled() -> bool:
 
     Defaults to enabled.
     """
-    from deepagents_cli._env_vars import NO_UPDATE_CHECK
+    from agent_tui._env_vars import NO_UPDATE_CHECK
 
     if os.environ.get(NO_UPDATE_CHECK):
         return False
@@ -348,8 +348,8 @@ def is_auto_update_enabled() -> bool:
 
     Always disabled for editable installs.
     """
-    from deepagents_cli._env_vars import AUTO_UPDATE
-    from deepagents_cli.config import _is_editable_install
+    from agent_tui._env_vars import AUTO_UPDATE
+    from agent_tui.config import _is_editable_install
 
     if _is_editable_install():
         return False

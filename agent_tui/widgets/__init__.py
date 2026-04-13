@@ -3,7 +3,7 @@
 Import directly from submodules, e.g.:
 
     ```python
-    from deepagents_cli.widgets.chat_input import ChatInput
-    from deepagents_cli.widgets.messages import AssistantMessage
+    from agent_tui.widgets.chat_input import ChatInput
+    from agent_tui.widgets.messages import AssistantMessage
     ```
 """

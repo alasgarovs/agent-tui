@@ -14,8 +14,8 @@ from textual.widgets import Checkbox, Static
 if TYPE_CHECKING:
     from textual.app import ComposeResult
 
-from deepagents_cli import theme
-from deepagents_cli.config import get_glyphs, is_ascii_mode
+from agent_tui import theme
+from agent_tui.config import get_glyphs, is_ascii_mode
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +123,7 @@ class NotificationSettingsScreen(ModalScreen[None]):
         enabled = event.value
 
         async def _persist() -> None:
-            from deepagents_cli.model_config import (
+            from agent_tui.model_config import (
                 suppress_warning,
                 unsuppress_warning,
             )

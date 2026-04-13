@@ -16,13 +16,13 @@ if TYPE_CHECKING:
     from textual import events
     from textual.app import ComposeResult
 
-from deepagents_cli import theme
-from deepagents_cli.config import (
+from agent_tui import theme
+from agent_tui.config import (
     SHELL_TOOL_NAMES,
     get_glyphs,
     is_ascii_mode,
 )
-from deepagents_cli.unicode_security import (
+from agent_tui.unicode_security import (
     check_url_safety,
     detect_dangerous_unicode,
     format_warning_detail,
@@ -32,7 +32,7 @@ from deepagents_cli.unicode_security import (
     strip_dangerous_unicode,
     summarize_issues,
 )
-from deepagents_cli.widgets.tool_renderers import get_renderer
+from agent_tui.widgets.tool_renderers import get_renderer
 
 # Max length for truncated shell command display
 _SHELL_COMMAND_TRUNCATE_LENGTH: int = 120

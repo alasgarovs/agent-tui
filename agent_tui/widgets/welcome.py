@@ -14,9 +14,9 @@ from textual.widgets import Static
 if TYPE_CHECKING:
     from textual.events import Click
 
-from deepagents_cli import theme
-from deepagents_cli._version import __version__
-from deepagents_cli.config import (
+from agent_tui import theme
+from agent_tui._version import __version__
+from agent_tui.config import (
     _get_editable_install_path,
     _is_editable_install,
     fetch_langsmith_project_url,
@@ -24,7 +24,7 @@ from deepagents_cli.config import (
     get_glyphs,
     get_langsmith_project_name,
 )
-from deepagents_cli.widgets._links import open_style_link
+from agent_tui.widgets._links import open_style_link
 
 _TIPS: list[str] = [
     "Use @ to reference files and / for commands",

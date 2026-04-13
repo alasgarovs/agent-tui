@@ -17,7 +17,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
-from deepagents_cli.project_utils import find_project_root
+from agent_tui.project_utils import find_project_root
 
 
 def _get_git_executable() -> str | None:

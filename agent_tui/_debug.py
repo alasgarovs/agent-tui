@@ -12,7 +12,7 @@ import logging
 import os
 from pathlib import Path
 
-from deepagents_cli._env_vars import DEBUG, DEBUG_FILE
+from agent_tui._env_vars import DEBUG, DEBUG_FILE
 
 
 def configure_debug_logging(target: logging.Logger) -> None:
