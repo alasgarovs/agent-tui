@@ -18,16 +18,16 @@ import shutil
 import sys
 import time
 import tomllib
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from packaging.version import InvalidVersion, Version
 
 from agent_tui._version import PYPI_URL, USER_AGENT, __version__
 
-if TYPE_CHECKING:
-    from pathlib import Path
+from pathlib import Path
 
-from agent_tui.model_config import DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_PATH
+DEFAULT_CONFIG_DIR: Path = Path.home() / ".agent-tui"
+DEFAULT_CONFIG_PATH: Path = DEFAULT_CONFIG_DIR / "config.toml"
 
 logger = logging.getLogger(__name__)
 

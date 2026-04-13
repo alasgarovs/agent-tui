@@ -43,9 +43,10 @@ def _load_hooks() -> list[dict[str, Any]]:
     if _hooks_config is not None:
         return _hooks_config
 
-    from agent_tui.model_config import DEFAULT_CONFIG_DIR
+    from pathlib import Path
 
-    hooks_path = DEFAULT_CONFIG_DIR / "hooks.json"
+    _config_dir = Path.home() / ".agent-tui"
+    hooks_path = _config_dir / "hooks.json"
 
     if not hooks_path.is_file():
         _hooks_config = []
