@@ -7,53 +7,31 @@ pulling in the langchain middleware stack.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, NotRequired
+from typing import Literal, NotRequired
 
-from pydantic import Field
 from typing_extensions import TypedDict
 
 
 class Choice(TypedDict):
     """A single choice option for a multiple choice question."""
 
-    value: Annotated[str, Field(description="The display label for this choice.")]
+    value: str  # The display label for this choice.
 
 
 class Question(TypedDict):
     """A question to ask the user."""
 
-    question: Annotated[str, Field(description="The question text to display.")]
+    question: str  # The question text to display.
 
-    type: Annotated[
-        Literal["text", "multiple_choice"],
-        Field(
-            description=(
-                "Question type. 'text' for free-form input, 'multiple_choice' for "
-                "predefined options."
-            )
-        ),
-    ]
+    type: Literal["text", "multiple_choice"]
+    # 'text' for free-form input, 'multiple_choice' for predefined options.
 
-    choices: NotRequired[
-        Annotated[
-            list[Choice],
-            Field(
-                description=(
-                    "Options for multiple_choice questions. An 'Other' free-form "
-                    "option is always appended automatically."
-                )
-            ),
-        ]
-    ]
+    choices: NotRequired[list[Choice]]
+    # Options for multiple_choice questions. An 'Other' free-form option is
+    # always appended automatically.
 
-    required: NotRequired[
-        Annotated[
-            bool,
-            Field(
-                description="Whether the user must answer. Defaults to true if omitted."
-            ),
-        ]
-    ]
+    required: NotRequired[bool]
+    # Whether the user must answer. Defaults to true if omitted.
 
 
 class AskUserRequest(TypedDict):
