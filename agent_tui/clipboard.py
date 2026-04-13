@@ -1,4 +1,4 @@
-"""Clipboard utilities for deepagents-cli."""
+"""Clipboard utilities for agent-tui."""
 
 from __future__ import annotations
 

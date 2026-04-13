@@ -1,4 +1,4 @@
-"""LangChain brand colors and semantic constants for the CLI.
+"""agent-tui brand colors and semantic constants for the CLI.
 
 Single source of truth for color values used in Python code (Rich markup,
 `Content.styled`, `Content.from_markup`).  CSS-side styling should reference
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Brand palette — dark  (originally tokyonight-inspired, LangChain blue primary)
+# Brand palette — dark  (originally tokyonight-inspired, deep blue primary)
 # ---------------------------------------------------------------------------
 AT_DARK = "#11121D"
 """Background — visible blue tint, distinguishable from pure black."""
@@ -803,7 +803,7 @@ def _colors_from_textual_theme(app: object) -> ThemeColors:
 def get_theme_colors(widget_or_app: App | object | None = None) -> ThemeColors:
     """Return the `ThemeColors` for the active Textual theme.
 
-    For custom themes (LangChain-branded and user-defined), the pre-built
+    For custom themes (agent-tui and user-defined), the pre-built
     `ThemeColors` from the registry is returned directly.  For Textual built-in
     themes, colors are resolved dynamically from the actual theme properties so
     Python-side styling stays in sync with CSS variables.

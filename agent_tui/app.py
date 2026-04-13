@@ -421,7 +421,7 @@ _COMMAND_URLS: dict[str, str] = {
 class AgentTuiApp(App):
     """Main Textual application for agent-tui."""
 
-    TITLE = "Deep Agents"
+    TITLE = "agent-tui"
     """Textual application title."""
 
     CSS_PATH = "app.tcss"
@@ -2436,7 +2436,7 @@ class AgentTuiApp(App):
                     version as _pkg_version,
                 )
 
-                sdk_version = _pkg_version("deepagents")
+                sdk_version = _pkg_version("agent-tui")
                 sdk_line = f"agent-tui (SDK) version: {sdk_version}"
             except PackageNotFoundError:
                 logger.debug("agent-tui SDK package not found in environment")
@@ -3449,6 +3449,8 @@ class AgentTuiApp(App):
         # If agent is running, interrupt it and discard queued messages
         if self._agent_running and self._agent_worker:
             self._cancel_worker(self._agent_worker)
+            if self._agent is not None:
+                self.call_later(self._agent.cancel)
             self._quit_pending = False
             return
 
