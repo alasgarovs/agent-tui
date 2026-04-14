@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 
     from textual.app import ComposeResult
 
-from agent_tui import theme
-from agent_tui.config import Glyphs, get_glyphs, is_ascii_mode
+from agent_tui.configurator import theme
+from agent_tui.configurator.glyphs import Glyphs, get_glyphs, is_ascii_mode
 from agent_tui.domain.session_stats import format_token_count
 
 logger = logging.getLogger(__name__)

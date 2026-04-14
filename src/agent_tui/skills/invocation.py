@@ -36,7 +36,7 @@ def discover_skills_and_roots(
     Returns:
         Tuple of ``(skill metadata list, pre-resolved containment roots)``.
     """
-    from agent_tui.config import settings
+    from agent_tui.configurator.settings import settings
     from agent_tui.skills.load import list_skills
 
     skills = list_skills(

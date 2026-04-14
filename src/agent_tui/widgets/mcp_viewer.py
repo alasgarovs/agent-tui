@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 
     from agent_tui.domain.mcp_tools import MCPServerInfo
 
-from agent_tui import theme
-from agent_tui.config import get_glyphs, is_ascii_mode
+from agent_tui.configurator import theme
+from agent_tui.configurator.glyphs import get_glyphs, is_ascii_mode
 
 
 class MCPToolItem(Static):

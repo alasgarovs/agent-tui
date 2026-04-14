@@ -8,7 +8,7 @@ from textual.containers import Vertical
 from textual.content import Content
 from textual.widgets import Markdown, Static
 
-from agent_tui import theme
+from agent_tui.configurator import theme
 
 if TYPE_CHECKING:
     from textual.app import ComposeResult

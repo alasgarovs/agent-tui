@@ -11,7 +11,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
-from agent_tui.config import MAX_ARG_LENGTH, get_glyphs
+from agent_tui.configurator.glyphs import MAX_ARG_LENGTH, get_glyphs
 from agent_tui.unicode_security import strip_dangerous_unicode
 
 DEFAULT_EXECUTE_TIMEOUT = 120  # seconds — default timeout for tool execution

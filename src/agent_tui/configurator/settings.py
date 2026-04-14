@@ -1,4 +1,4 @@
-"""Configuration, constants, and model creation for the CLI."""
+"""Settings, environment loading, and shell safety for agent-tui."""
 
 from __future__ import annotations
 
@@ -10,13 +10,14 @@ import shlex
 import sys
 import threading
 from dataclasses import dataclass
-from enum import StrEnum
-from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import unquote, urlparse
 
-from agent_tui._version import __version__
+from agent_tui.configurator.version import __version__  # noqa: F401
+
+if TYPE_CHECKING:
+    settings: Settings
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ _bootstrap_lock = threading.Lock()
 and the prewarm worker thread."""
 
 _singleton_lock = threading.Lock()
-"""Guards lazy singleton construction in `_get_console` / `_get_settings`."""
+"""Guards lazy singleton construction in `_get_settings`."""
 
 _bootstrap_start_path: Path | None = None
 """Working directory captured at bootstrap time for dotenv and project discovery."""
@@ -162,7 +163,7 @@ def _ensure_bootstrap() -> None:
             return
 
         try:
-            from agent_tui.project_utils import (
+            from agent_tui.configurator.project_utils import (
                 get_server_project_context as _get_server_project_context,
             )
 
@@ -177,15 +178,6 @@ def _ensure_bootstrap() -> None:
         finally:
             _bootstrap_done = True
 
-
-if TYPE_CHECKING:
-    from rich.console import Console
-
-    # Static type stubs for lazy module attributes resolved by __getattr__.
-    # At runtime these are created on first access by _get_settings() /
-    # _get_console() and cached in globals().
-    settings: Settings
-    console: Console
 
 MODE_PREFIXES: dict[str, str] = {
     "shell": "!",
@@ -212,223 +204,6 @@ PREFIX_TO_MODE: dict[str, str] = {v: k for k, v in MODE_PREFIXES.items()}
 """Reverse lookup: trigger character -> mode name."""
 
 
-class CharsetMode(StrEnum):
-    """Character set mode for TUI display."""
-
-    UNICODE = "unicode"
-    """Always use Unicode glyphs (e.g. `⏺`, `✓`, `…`)."""
-
-    ASCII = "ascii"
-    """Always use ASCII-safe fallbacks (e.g. `(*)`, `[OK]`, `...`)."""
-
-    AUTO = "auto"
-    """Detect charset support at runtime and pick Unicode or ASCII."""
-
-
-@dataclass(frozen=True)
-class Glyphs:
-    """Character glyphs for TUI display."""
-
-    tool_prefix: str  # ⏺ vs (*)
-    ellipsis: str  # … vs ...
-    checkmark: str  # ✓ vs [OK]
-    error: str  # ✗ vs [X]
-    circle_empty: str  # ○ vs [ ]
-    circle_filled: str  # ● vs [*]
-    output_prefix: str  # ⎿ vs L
-    spinner_frames: tuple[str, ...]  # Braille vs ASCII spinner
-    pause: str  # ⏸ vs ||
-    newline: str  # ⏎ vs \\n
-    warning: str  # ⚠ vs [!]
-    question: str  # ? vs [?]
-    arrow_up: str  # up arrow vs ^
-    arrow_down: str  # down arrow vs v
-    bullet: str  # bullet vs -
-    cursor: str  # cursor vs >
-
-    # Box-drawing characters
-    box_vertical: str  # │ vs |
-    box_horizontal: str  # ─ vs -
-    box_double_horizontal: str  # ═ vs =
-
-    # Diff-specific
-    gutter_bar: str  # ▌ vs |
-
-    # Status bar
-    git_branch: str  # "↗" vs "git:"
-
-
-UNICODE_GLYPHS = Glyphs(
-    tool_prefix="⏺",
-    ellipsis="…",
-    checkmark="✓",
-    error="✗",
-    circle_empty="○",
-    circle_filled="●",
-    output_prefix="⎿",
-    spinner_frames=("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"),
-    pause="⏸",
-    newline="⏎",
-    warning="⚠",
-    question="?",
-    arrow_up="↑",
-    arrow_down="↓",
-    bullet="•",
-    cursor="›",  # noqa: RUF001  # Intentional Unicode glyph
-    # Box-drawing characters
-    box_vertical="│",
-    box_horizontal="─",
-    box_double_horizontal="═",
-    gutter_bar="▌",
-    git_branch="↗",
-)
-"""Glyph set for terminals with full Unicode support."""
-
-ASCII_GLYPHS = Glyphs(
-    tool_prefix="(*)",
-    ellipsis="...",
-    checkmark="[OK]",
-    error="[X]",
-    circle_empty="[ ]",
-    circle_filled="[*]",
-    output_prefix="L",
-    spinner_frames=("(-)", "(\\)", "(|)", "(/)"),
-    pause="||",
-    newline="\\n",
-    warning="[!]",
-    question="[?]",
-    arrow_up="^",
-    arrow_down="v",
-    bullet="-",
-    cursor=">",
-    # Box-drawing characters
-    box_vertical="|",
-    box_horizontal="-",
-    box_double_horizontal="=",
-    gutter_bar="|",
-    git_branch="git:",
-)
-"""Glyph set for terminals limited to 7-bit ASCII."""
-
-_glyphs_cache: Glyphs | None = None
-"""Module-level cache for detected glyphs."""
-
-_editable_cache: tuple[bool, str | None] | None = None
-"""Module-level cache for editable install info: (is_editable, source_path)."""
-
-def _resolve_editable_info() -> tuple[bool, str | None]:
-    """Parse PEP 610 `direct_url.json` once and cache both results.
-
-    Returns:
-        Tuple of (is_editable, contracted_source_path). The path is
-        `~`-contracted when it falls under the user's home directory, or
-        `None` when the install is non-editable or the path is unavailable.
-    """
-    global _editable_cache  # noqa: PLW0603  # Module-level cache requires global statement
-    if _editable_cache is not None:
-        return _editable_cache
-
-    editable = False
-    path: str | None = None
-
-    try:
-        dist = distribution("agent-tui")
-        raw = dist.read_text("direct_url.json")
-        if raw:
-            data = json.loads(raw)
-            editable = data.get("dir_info", {}).get("editable", False)
-            if editable:
-                url = data.get("url", "")
-                if url.startswith("file://"):
-                    path = unquote(urlparse(url).path)
-                    home = str(Path.home())
-                    if path.startswith(home):
-                        path = "~" + path[len(home) :]
-    except (PackageNotFoundError, FileNotFoundError, json.JSONDecodeError, TypeError):
-        logger.debug(
-            "Failed to read editable install info from PEP 610 metadata",
-            exc_info=True,
-        )
-
-    _editable_cache = (editable, path)
-    return _editable_cache
-
-
-def _is_editable_install() -> bool:
-    """Check if agent-tui is installed in editable mode.
-
-    Uses PEP 610 `direct_url.json` metadata to detect editable installs.
-
-    Returns:
-        `True` if installed in editable mode, `False` otherwise.
-    """
-    return _resolve_editable_info()[0]
-
-
-def _get_editable_install_path() -> str | None:
-    """Return the `~`-contracted source directory for an editable install.
-
-    Returns `None` for non-editable installs or when the path cannot be
-    determined.
-    """
-    return _resolve_editable_info()[1]
-
-
-def _detect_charset_mode() -> CharsetMode:
-    """Auto-detect terminal charset capabilities.
-
-    Returns:
-        The detected CharsetMode based on environment and terminal encoding.
-    """
-    env_mode = os.environ.get("UI_CHARSET_MODE", "auto").lower()
-    if env_mode == "unicode":
-        return CharsetMode.UNICODE
-    if env_mode == "ascii":
-        return CharsetMode.ASCII
-
-    # Auto: check stdout encoding and LANG
-    encoding = getattr(sys.stdout, "encoding", "") or ""
-    if "utf" in encoding.lower():
-        return CharsetMode.UNICODE
-    lang = os.environ.get("LANG", "") or os.environ.get("AT_ALL", "")
-    if "utf" in lang.lower():
-        return CharsetMode.UNICODE
-    return CharsetMode.ASCII
-
-
-def get_glyphs() -> Glyphs:
-    """Get the glyph set for the current charset mode.
-
-    Returns:
-        The appropriate Glyphs instance based on charset mode detection.
-    """
-    global _glyphs_cache  # noqa: PLW0603  # Module-level cache requires global statement
-    if _glyphs_cache is not None:
-        return _glyphs_cache
-
-    mode = _detect_charset_mode()
-    _glyphs_cache = ASCII_GLYPHS if mode == CharsetMode.ASCII else UNICODE_GLYPHS
-    return _glyphs_cache
-
-
-def reset_glyphs_cache() -> None:
-    """Reset the glyphs cache (for testing)."""
-    global _glyphs_cache  # noqa: PLW0603  # Module-level cache requires global statement
-    _glyphs_cache = None
-
-
-def is_ascii_mode() -> bool:
-    """Check whether the terminal is in ASCII charset mode.
-
-    Convenience wrapper so widgets can branch on charset without importing
-    both `_detect_charset_mode` and `CharsetMode`.
-
-    Returns:
-        `True` when the detected charset mode is ASCII.
-    """
-    return _detect_charset_mode() == CharsetMode.ASCII
-
-
 def newline_shortcut() -> str:
     """Return the platform-native label for the newline keyboard shortcut.
 
@@ -439,105 +214,6 @@ def newline_shortcut() -> str:
         A human-readable shortcut string, e.g. `'Option+Enter'` or `'Ctrl+J'`.
     """
     return "Option+Enter" if sys.platform == "darwin" else "Ctrl+J"
-
-
-_UNICODE_BANNER = f"""
-██████╗  ███████╗ ███████╗ ██████╗    ▄▓▓▄
-██╔══██╗ ██╔════╝ ██╔════╝ ██╔══██╗  ▓•███▙
-██║  ██║ █████╗   █████╗   ██████╔╝  ░▀▀████▙▖
-██║  ██║ ██╔══╝   ██╔══╝   ██╔═══╝      █▓████▙▖
-██████╔╝ ███████╗ ███████╗ ██║          ▝█▓█████▙
-╚═════╝  ╚══════╝ ╚══════╝ ╚═╝           ░▜█▓████▙
-                                          ░█▀█▛▀▀▜▙▄
-                                        ░▀░▀▒▛░░  ▝▀▘
-
- █████╗   ██████╗  ███████╗ ███╗   ██╗ ████████╗ ███████╗
-██╔══██╗ ██╔════╝  ██╔════╝ ████╗  ██║ ╚══██╔══╝ ██╔════╝
-███████║ ██║  ███╗ █████╗   ██╔██╗ ██║    ██║    ███████╗
-██╔══██║ ██║   ██║ ██╔══╝   ██║╚██╗██║    ██║    ╚════██║
-██║  ██║ ╚██████╔╝ ███████╗ ██║ ╚████║    ██║    ███████║
-╚═╝  ╚═╝  ╚═════╝  ╚══════╝ ╚═╝  ╚═══╝    ╚═╝    ╚══════╝
-                                                  v{__version__}
-"""
-_ASCII_BANNER = f"""
- ____  ____  ____  ____
-|  _ \\| ___|| ___||  _ \\
-| | | | |_  | |_  | |_) |
-| |_| |  _| |  _| |  __/
-|____/|____||____||_|
-
-    _    ____  ____  _   _  _____  ____
-   / \\  / ___|| ___|| \\ | ||_   _|/ ___|
-  / _ \\| |  _ | |_  |  \\| |  | |  \\___ \\
- / ___ \\ |_| ||  _| | |\\  |  | |   ___) |
-/_/   \\_\\____||____||_| \\_|  |_|  |____/
-                                  v{__version__}
-"""
-
-
-def get_banner() -> str:
-    """Get the appropriate banner for the current charset mode.
-
-    Returns:
-        The text art banner string (Unicode or ASCII based on charset mode).
-
-            Includes "(local)" suffix when installed in editable mode.
-    """
-    if _detect_charset_mode() == CharsetMode.ASCII:
-        banner = _ASCII_BANNER
-    else:
-        banner = _UNICODE_BANNER
-
-    if _is_editable_install():
-        banner = banner.replace(f"v{__version__}", f"v{__version__} (local)")
-
-    return banner
-
-
-MAX_ARG_LENGTH = 150
-"""Character limit for tool argument values in the UI.
-
-Longer values are truncated with an ellipsis by `truncate_value`
-in `tool_display`.
-"""
-
-_git_branch_cache: dict[str, str | None] = {}
-"""Per-cwd cache of resolved git branch names.
-
-Avoids repeated `git rev-parse` subprocess calls within the same session. Keyed
-by `str(Path.cwd())`; `None` values indicate the directory is not inside a git
-repository.
-"""
-
-
-def _get_git_branch() -> str | None:
-    """Return the current git branch name, or `None` if not in a repo."""
-    import subprocess  # noqa: S404
-
-    try:
-        cwd = str(Path.cwd())
-    except OSError:
-        logger.debug("Could not determine cwd for git branch lookup", exc_info=True)
-        return None
-    if cwd in _git_branch_cache:
-        return _git_branch_cache[cwd]
-
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],  # noqa: S607
-            capture_output=True,
-            text=True,
-            timeout=2,
-            check=False,
-        )
-        if result.returncode == 0:
-            branch = result.stdout.strip() or None
-            _git_branch_cache[cwd] = branch
-            return branch
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        logger.debug("Could not determine git branch", exc_info=True)
-    _git_branch_cache[cwd] = None
-    return None
 
 
 class _ShellAllowAll(list):  # noqa: FURB189  # sentinel type, not a general-purpose list subclass
@@ -775,13 +451,13 @@ class Settings:
         tavily_key = _resolve("TAVILY_API_KEY")
         google_cloud_project = _resolve("GOOGLE_CLOUD_PROJECT")
 
-        from agent_tui._env_vars import (
+        from agent_tui.configurator.env_vars import (
             EXTRA_SKILLS_DIRS,
             SHELL_ALLOW_LIST,
         )
 
         # Detect project
-        from agent_tui.project_utils import find_project_root
+        from agent_tui.configurator.project_utils import find_project_root
 
         project_root = find_project_root(start_path)
 
@@ -866,7 +542,7 @@ class Settings:
 
         previous = {field: getattr(self, field) for field in reloadable_fields}
 
-        from agent_tui._env_vars import (
+        from agent_tui.configurator.env_vars import (
             EXTRA_SKILLS_DIRS,
             SHELL_ALLOW_LIST,
         )
@@ -881,7 +557,7 @@ class Settings:
             shell_allow_list = previous["shell_allow_list"]
 
         try:
-            from agent_tui.project_utils import find_project_root
+            from agent_tui.configurator.project_utils import find_project_root
 
             project_root = find_project_root(start_path)
         except OSError:
@@ -1003,7 +679,7 @@ class Settings:
         """
         if not self.project_root:
             return []
-        from agent_tui.project_utils import find_project_agent_md
+        from agent_tui.configurator.project_utils import find_project_agent_md
 
         return find_project_agent_md(self.project_root)
 
@@ -1193,7 +869,7 @@ class Settings:
         Returns:
             Path to the `built_in_skills/` directory within the package.
         """
-        return Path(__file__).parent / "built_in_skills"
+        return Path(__file__).parent.parent / "built_in_skills"
 
     def get_extra_skills_dirs(self) -> list[Path]:
         """Get user-configured extra skill directories.
@@ -1434,29 +1110,6 @@ def get_default_coding_instructions() -> str:
     return default_prompt_path.read_text()
 
 
-def _get_console() -> Console:
-    """Return the lazily-initialized global `Console` instance.
-
-    Defers the `rich.console` import until console output is actually
-    needed. The result is cached in `globals()["console"]`.
-
-    Returns:
-        The global Rich `Console` singleton.
-    """
-    cached = globals().get("console")
-    if cached is not None:
-        return cached
-    with _singleton_lock:
-        cached = globals().get("console")
-        if cached is not None:
-            return cached
-        from rich.console import Console
-
-        inst = Console(highlight=False)
-        globals()["console"] = inst
-        return inst
-
-
 def _get_settings() -> Settings:
     """Return the lazily-initialized global `Settings` instance.
 
@@ -1487,22 +1140,10 @@ def _get_settings() -> Settings:
         return inst
 
 
-def __getattr__(name: str) -> Settings | Console:
-    """Lazy module attributes for `settings` and `console`.
-
-    Defers heavy initialization until first access. Subsequent accesses hit
-    the module-level attribute directly (no `__getattr__` overhead).
-
-    Returns:
-        The requested lazy singleton.
-
-    Raises:
-        AttributeError: If *name* is not a lazily-provided attribute.
-    """
+def __getattr__(name: str) -> Settings:
+    """Lazy module attribute for `settings`."""
     if name == "settings":
         return _get_settings()
-    if name == "console":
-        return _get_console()
     msg = f"module {__name__!r} has no attribute {name!r}"
     raise AttributeError(msg)
 

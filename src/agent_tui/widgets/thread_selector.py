@@ -28,12 +28,9 @@ if TYPE_CHECKING:
 
     from agent_tui.sessions import ThreadInfo
 
-from agent_tui import theme
-from agent_tui.config import (
-    build_langsmith_thread_url,
-    get_glyphs,
-    is_ascii_mode,
-)
+from agent_tui.configurator import theme
+from agent_tui.configurator.glyphs import get_glyphs, is_ascii_mode
+from agent_tui.configurator.settings import build_langsmith_thread_url
 from agent_tui.widgets._links import open_style_link
 
 logger = logging.getLogger(__name__)

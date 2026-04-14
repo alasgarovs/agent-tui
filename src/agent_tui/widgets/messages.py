@@ -18,13 +18,9 @@ from textual.events import Click
 from textual.reactive import var
 from textual.widgets import Static
 
-from agent_tui import theme
-from agent_tui.config import (
-    MODE_DISPLAY_GLYPHS,
-    PREFIX_TO_MODE,
-    get_glyphs,
-    is_ascii_mode,
-)
+from agent_tui.configurator import theme
+from agent_tui.configurator.glyphs import get_glyphs, is_ascii_mode
+from agent_tui.configurator.settings import MODE_DISPLAY_GLYPHS, PREFIX_TO_MODE
 from agent_tui.formatting import format_duration
 from agent_tui.input import EMAIL_PREFIX_PATTERN, INPUT_HIGHLIGHT_PATTERN
 from agent_tui.tool_display import format_tool_display

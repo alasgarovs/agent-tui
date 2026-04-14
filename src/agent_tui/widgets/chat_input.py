@@ -18,14 +18,10 @@ from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Static, TextArea
 
-from agent_tui import theme
+from agent_tui.configurator import theme
 from agent_tui.domain.command_registry import SLASH_COMMANDS
-from agent_tui.config import (
-    MODE_DISPLAY_GLYPHS,
-    MODE_PREFIXES,
-    PREFIX_TO_MODE,
-    is_ascii_mode,
-)
+from agent_tui.configurator.glyphs import is_ascii_mode
+from agent_tui.configurator.settings import MODE_DISPLAY_GLYPHS, MODE_PREFIXES, PREFIX_TO_MODE
 from agent_tui.input import IMAGE_PLACEHOLDER_PATTERN, VIDEO_PLACEHOLDER_PATTERN
 from agent_tui.widgets.autocomplete import (
     CompletionResult,

@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from agent_tui._version import __version__
+from agent_tui.configurator.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ def check_optional_tools(*, config_path: Path | None = None) -> list[str]:
     Returns:
         List of missing tool names (e.g. ``["ripgrep"]``).
     """
-    from agent_tui.model_config import is_warning_suppressed
+    from agent_tui.configurator.model_config import is_warning_suppressed
 
     missing: list[str] = []
     if shutil.which("rg") is None and not is_warning_suppressed(
@@ -79,7 +79,7 @@ def check_optional_tools(*, config_path: Path | None = None) -> list[str]:
     ):
         missing.append("ripgrep")
 
-    from agent_tui.config import settings
+    from agent_tui.configurator.settings import settings
 
     if not settings.has_tavily and not is_warning_suppressed("tavily", config_path):
         missing.append("tavily")
@@ -154,7 +154,7 @@ def cli_main() -> None:
         _args = parse_args()
 
         # Bootstrap config (triggers _ensure_bootstrap via settings access)
-        from agent_tui.config import settings  # noqa: F401
+        from agent_tui.configurator.settings import settings  # noqa: F401
 
         from agent_tui.app import AgentTuiApp
         from agent_tui.stub_agent import StubAgent

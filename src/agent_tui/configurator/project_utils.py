@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from agent_tui._env_vars import SERVER_ENV_PREFIX
+from agent_tui.configurator.env_vars import SERVER_ENV_PREFIX
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

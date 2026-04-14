@@ -9,7 +9,7 @@ from textual.containers import Horizontal
 from textual.content import Content
 from textual.widgets import Static
 
-from agent_tui.config import get_glyphs
+from agent_tui.configurator.glyphs import get_glyphs
 from agent_tui.formatting import format_duration
 
 if TYPE_CHECKING:

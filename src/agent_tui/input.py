@@ -10,7 +10,7 @@ from urllib.parse import unquote, urlparse
 
 from rich.markup import escape as escape_markup
 
-from agent_tui.config import console
+from agent_tui.configurator.console import console
 from agent_tui.media_utils import ImageData, VideoData
 
 logger = logging.getLogger(__name__)

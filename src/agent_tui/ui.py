@@ -6,13 +6,13 @@ argparse tree.  It must stay lightweight — no SDK or langchain imports.
 
 from rich.markup import escape
 
-from agent_tui import theme
-from agent_tui._version import DOCS_URL, __version__
-from agent_tui.config import (
+from agent_tui.configurator import theme
+from agent_tui.configurator.console import (
     _get_editable_install_path,
     _is_editable_install,
     console,
 )
+from agent_tui.configurator.version import DOCS_URL, __version__
 
 _JSON_OPTION_LINE = "  --json                  Emit machine-readable JSON"
 _HELP_OPTION_LINE = "  -h, --help              Show this help message"

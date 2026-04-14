@@ -382,7 +382,7 @@ async def prewarm_thread_message_counts(limit: int | None = None) -> None:
         return
 
     try:
-        from agent_tui.model_config import load_thread_config
+        from agent_tui.configurator.model_config import load_thread_config
 
         cfg = load_thread_config()
         threads = await list_threads(limit=thread_limit, include_message_count=False)
@@ -1027,7 +1027,7 @@ async def list_threads_command(
             When `None`, reads from config (`~/.agent-tui/config.toml`).
         output_format: Output format — `'text'` (Rich) or `'json'`.
     """
-    from agent_tui.model_config import (
+    from agent_tui.configurator.model_config import (
         load_thread_relative_time,
         load_thread_sort_order,
     )
@@ -1064,8 +1064,8 @@ async def list_threads_command(
     from rich.markup import escape as escape_markup
     from rich.table import Table
 
-    from agent_tui import theme
-    from agent_tui.config import console
+    from agent_tui.configurator import theme
+    from agent_tui.configurator.console import console
 
     if not threads:
         filters = []
@@ -1164,7 +1164,7 @@ async def delete_thread_command(
 
         from rich.markup import escape as escape_markup
 
-        from agent_tui.config import console
+        from agent_tui.configurator.console import console
 
         escaped_id = escape_markup(thread_id)
         if exists:
@@ -1184,8 +1184,8 @@ async def delete_thread_command(
 
     from rich.markup import escape as escape_markup
 
-    from agent_tui import theme
-    from agent_tui.config import console
+    from agent_tui.configurator import theme
+    from agent_tui.configurator.console import console
 
     escaped_id = escape_markup(thread_id)
     if deleted:

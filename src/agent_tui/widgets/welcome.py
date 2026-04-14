@@ -13,14 +13,14 @@ from textual.widgets import Static
 if TYPE_CHECKING:
     from textual.events import Click
 
-from agent_tui import theme
-from agent_tui._version import __version__
-from agent_tui.config import (
+from agent_tui.configurator import theme
+from agent_tui.configurator.console import (
     _get_editable_install_path,
     _is_editable_install,
     get_banner,
-    get_glyphs,
 )
+from agent_tui.configurator.glyphs import get_glyphs
+from agent_tui.configurator.version import __version__
 from agent_tui.widgets._links import open_style_link
 
 _TIPS: list[str] = [

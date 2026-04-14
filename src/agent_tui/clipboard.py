@@ -8,7 +8,7 @@ import os
 import pathlib
 from typing import TYPE_CHECKING
 
-from agent_tui.config import get_glyphs
+from agent_tui.configurator.glyphs import get_glyphs
 
 logger = logging.getLogger(__name__)
 

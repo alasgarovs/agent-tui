@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from agent_tui._version import __version__
+from agent_tui.configurator.version import __version__
 
 if TYPE_CHECKING:
     from collections.abc import Callable

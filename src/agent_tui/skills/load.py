@@ -205,7 +205,7 @@ def load_skill_content(
             "Skill path %s is outside all allowed roots, refusing to read",
             skill_path,
         )
-        from agent_tui._env_vars import EXTRA_SKILLS_DIRS
+        from agent_tui.configurator.env_vars import EXTRA_SKILLS_DIRS
 
         msg = (
             f"Skill path {skill_path} resolves outside all allowed skill "

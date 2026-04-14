@@ -16,12 +16,9 @@ if TYPE_CHECKING:
     from textual import events
     from textual.app import ComposeResult
 
-from agent_tui import theme
-from agent_tui.config import (
-    SHELL_TOOL_NAMES,
-    get_glyphs,
-    is_ascii_mode,
-)
+from agent_tui.configurator import theme
+from agent_tui.configurator.glyphs import get_glyphs, is_ascii_mode
+from agent_tui.configurator.settings import SHELL_TOOL_NAMES
 from agent_tui.unicode_security import (
     check_url_safety,
     detect_dangerous_unicode,

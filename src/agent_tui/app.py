@@ -29,7 +29,7 @@ from textual.style import Style as TStyle
 from textual.theme import Theme
 from textual.widgets import Static
 
-from agent_tui import theme
+from agent_tui.configurator import theme
 from agent_tui.domain.cli_context import CLIContext
 from agent_tui.domain.session_stats import (
     SessionStats,
@@ -41,8 +41,8 @@ from agent_tui.domain.session_stats import (
 # All other config imports — settings, create_model, detect_provider, etc. — are
 # deferred to local imports at their call sites since they are only accessed
 # after user interaction begins.
-from agent_tui._version import CHANGELOG_URL, DOCS_URL
-from agent_tui.config import is_ascii_mode
+from agent_tui.configurator.glyphs import is_ascii_mode
+from agent_tui.configurator.version import CHANGELOG_URL, DOCS_URL
 from agent_tui.widgets.chat_input import ChatInput
 from agent_tui.widgets.loading import LoadingWidget
 from agent_tui.widgets.message_store import (
@@ -155,7 +155,7 @@ def _load_theme_preference() -> str:
     import tomllib
 
     try:
-        from agent_tui.model_config import DEFAULT_CONFIG_PATH
+        from agent_tui.configurator.model_config import DEFAULT_CONFIG_PATH
 
         if not DEFAULT_CONFIG_PATH.exists():
             return theme.DEFAULT_THEME
@@ -198,7 +198,7 @@ def save_theme_preference(name: str) -> bool:
 
         import tomli_w
 
-        from agent_tui.model_config import DEFAULT_CONFIG_PATH
+        from agent_tui.configurator.model_config import DEFAULT_CONFIG_PATH
 
         DEFAULT_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         if DEFAULT_CONFIG_PATH.exists():
@@ -1136,9 +1136,9 @@ class AgentTuiApp(App):
             copy_selection_to_clipboard,  # noqa: F401
         )
         from agent_tui.domain.command_registry import ALWAYS_IMMEDIATE  # noqa: F401
-        from agent_tui.config import settings  # noqa: F401
+        from agent_tui.configurator.settings import settings  # noqa: F401
         from agent_tui.hooks import dispatch_hook  # noqa: F401
-        from agent_tui.model_config import ModelSpec  # noqa: F401
+        from agent_tui.configurator.model_config import ModelSpec  # noqa: F401
         from agent_tui.update_check import is_update_check_enabled  # noqa: F401
 
         # Markdown rendering stack — ~170 ms cold (textual._markdown pulls in
@@ -1179,7 +1179,7 @@ class AgentTuiApp(App):
     async def _prewarm_model_caches(self) -> None:
         """Prewarm model discovery and profile caches without blocking startup."""
         try:
-            from agent_tui.model_config import (
+            from agent_tui.configurator.model_config import (
                 get_available_models,
                 get_model_profiles,
             )
@@ -1212,7 +1212,7 @@ class AgentTuiApp(App):
 
         # Phase 2: auto-update or notify (failures surfaced to user)
         try:
-            from agent_tui._version import __version__ as cli_version
+            from agent_tui.configurator.version import __version__ as cli_version
 
             if is_auto_update_enabled():
                 from agent_tui.update_check import perform_upgrade
@@ -1267,8 +1267,8 @@ class AgentTuiApp(App):
             return
 
         try:
-            from agent_tui._version import __version__ as cli_version
-            from agent_tui.config import _is_editable_install
+            from agent_tui.configurator.version import __version__ as cli_version
+            from agent_tui.configurator.console import _is_editable_install
 
             if await asyncio.to_thread(_is_editable_install):
                 heading = f"Now running v{cli_version}"
@@ -1283,7 +1283,7 @@ class AgentTuiApp(App):
             return
 
         try:
-            from agent_tui._version import __version__ as cli_version
+            from agent_tui.configurator.version import __version__ as cli_version
             from agent_tui.update_check import mark_version_seen
 
             await asyncio.to_thread(mark_version_seen, cli_version)
@@ -1308,7 +1308,7 @@ class AgentTuiApp(App):
                 await self._mount_message(AppMessage("Already on the latest version."))
                 return
 
-            from agent_tui._version import __version__ as cli_version
+            from agent_tui.configurator.version import __version__ as cli_version
 
             await self._mount_message(
                 AppMessage(
@@ -1337,7 +1337,7 @@ class AgentTuiApp(App):
     async def _handle_auto_update_toggle(self) -> None:
         """Handle the `/auto-update` slash command — persist toggle immediately."""
         try:
-            from agent_tui.config import _is_editable_install
+            from agent_tui.configurator.console import _is_editable_install
             from agent_tui.update_check import (
                 is_auto_update_enabled,
                 set_auto_update,
@@ -1624,7 +1624,7 @@ class AgentTuiApp(App):
         Returns:
             A Future that resolves to the user's decision.
         """
-        from agent_tui.config import (
+        from agent_tui.configurator.settings import (
             SHELL_TOOL_NAMES,
             is_shell_command_allowed,
             settings,
@@ -2287,7 +2287,7 @@ class AgentTuiApp(App):
         Returns:
             `Content` with a clickable thread ID, or a plain string.
         """
-        from agent_tui.config import build_langsmith_thread_url
+        from agent_tui.configurator.settings import build_langsmith_thread_url
 
         try:
             url = await asyncio.wait_for(
@@ -2316,7 +2316,7 @@ class AgentTuiApp(App):
         Args:
             command: The raw command text (displayed as user message).
         """
-        from agent_tui.config import build_langsmith_thread_url
+        from agent_tui.configurator.settings import build_langsmith_thread_url
 
         if not self._session_state:
             await self._mount_message(UserMessage(command))
@@ -2383,7 +2383,7 @@ class AgentTuiApp(App):
         Args:
             command: The slash command (including /)
         """
-        from agent_tui.config import newline_shortcut, settings
+        from agent_tui.configurator.settings import newline_shortcut, settings
 
         cmd = command.lower().strip()
 
@@ -2419,13 +2419,13 @@ class AgentTuiApp(App):
             await self._mount_message(UserMessage(command))
             # Show CLI and SDK package versions
             try:
-                from agent_tui._version import (
+                from agent_tui.configurator.version import (
                     __version__ as cli_version,
                 )
 
                 cli_line = f"agent-tui version: {cli_version}"
             except ImportError:
-                logger.debug("agent_tui._version module not found")
+                logger.debug("agent_tui.configurator.version module not found")
                 cli_line = "agent-tui version: unknown"
             except Exception:
                 logger.warning("Unexpected error looking up CLI version", exc_info=True)
@@ -2601,7 +2601,7 @@ class AgentTuiApp(App):
             try:
                 changes = settings.reload_from_environment()
 
-                from agent_tui.model_config import clear_caches
+                from agent_tui.configurator.model_config import clear_caches
 
                 clear_caches()
             except (OSError, ValueError):
@@ -3809,7 +3809,7 @@ class AgentTuiApp(App):
         """
         from functools import partial
 
-        from agent_tui.config import settings
+        from agent_tui.configurator.settings import settings
         from agent_tui.widgets.model_selector import ModelSelectorScreen
 
         # Fetch available models from the agent protocol
@@ -3949,7 +3949,7 @@ class AgentTuiApp(App):
 
     async def _show_notification_settings(self) -> None:
         """Show notification settings modal."""
-        from agent_tui.model_config import is_warning_suppressed
+        from agent_tui.configurator.model_config import is_warning_suppressed
         from agent_tui.widgets.notification_settings import (
             WARNING_TOGGLES,
             NotificationSettingsScreen,

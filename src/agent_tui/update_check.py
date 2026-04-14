@@ -22,7 +22,7 @@ from typing import Literal
 
 from packaging.version import InvalidVersion, Version
 
-from agent_tui._version import PYPI_URL, USER_AGENT, __version__
+from agent_tui.configurator.version import PYPI_URL, USER_AGENT, __version__
 
 from pathlib import Path
 
@@ -234,7 +234,7 @@ def detect_install_method() -> InstallMethod:
         The detected install method: `'uv'`, `'brew'`, `'pip'`, or `'unknown'`
             (editable/dev installs).
     """
-    from agent_tui.config import _is_editable_install
+    from agent_tui.configurator.console import _is_editable_install
 
     prefix = sys.prefix
     # uv tool installs live under ~/.local/share/uv/tools/
@@ -332,7 +332,7 @@ def is_update_check_enabled() -> bool:
 
     Defaults to enabled.
     """
-    from agent_tui._env_vars import NO_UPDATE_CHECK
+    from agent_tui.configurator.env_vars import NO_UPDATE_CHECK
 
     if os.environ.get(NO_UPDATE_CHECK):
         return False
@@ -349,8 +349,8 @@ def is_auto_update_enabled() -> bool:
 
     Always disabled for editable installs.
     """
-    from agent_tui._env_vars import AUTO_UPDATE
-    from agent_tui.config import _is_editable_install
+    from agent_tui.configurator.env_vars import AUTO_UPDATE
+    from agent_tui.configurator.console import _is_editable_install
 
     if _is_editable_install():
         return False

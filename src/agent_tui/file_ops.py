@@ -169,7 +169,7 @@ def resolve_physical_path(
         return None
     try:
         if assistant_id and path_str.startswith("/memories/"):
-            from agent_tui.config import settings
+            from agent_tui.configurator.settings import settings
 
             agent_dir = settings.get_agent_dir(assistant_id)
             suffix = path_str.removeprefix("/memories/").lstrip("/")
