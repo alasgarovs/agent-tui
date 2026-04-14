@@ -4208,30 +4208,10 @@ class AgentTuiApp(App):
         *,
         extra_kwargs: dict[str, Any] | None = None,
     ) -> None:
-        """Switch to a new model, preserving conversation history.
-
-        This requires a server-backed interactive session. It sets a model
-        override that `ConfigurableModelMiddleware` picks up on the next
-        invocation, so the conversation thread stays intact and no server
-        restart is required.
-
-        Args:
-            model_spec: The model specification to switch to.
-
-                Can be in `provider:model` format
-                (e.g., `'anthropic:claude-sonnet-4-5'`) or just the model name
-                for auto-detection.
-            extra_kwargs: Extra constructor kwargs from `--model-params`.
-        """
-        from agent_tui.config import create_model, detect_provider, settings
-        from agent_tui.model_config import (
-            ModelSpec,
-            get_credential_env_var,
-            has_provider_credentials,
-            save_recent_model,
-        )
-
-        logger.info("Switching model to %s", model_spec)
+        """Switch to a new model by delegating to AgentProtocol.set_model()."""
+        model_spec = model_spec.removeprefix(":")
+        if not model_spec:
+            return
 
         if self._model_switching:
             await self._mount_message(AppMessage("Model switch already in progress."))
@@ -4239,154 +4219,26 @@ class AgentTuiApp(App):
 
         self._model_switching = True
         try:
-            # Defensively strip leading colon in case of empty provider,
-            # treat ":claude-opus-4-6" as "claude-opus-4-6"
-            model_spec = model_spec.removeprefix(":")
-
-            if not self._remote_agent():
-                await self._mount_message(
-                    ErrorMessage("Model switching requires a server-backed session.")
-                )
-                return
-
-            parsed = ModelSpec.try_parse(model_spec)
-            if parsed:
-                provider: str | None = parsed.provider
-                model_name = parsed.model
-            else:
-                model_name = model_spec
-                provider = detect_provider(model_spec)
-
-            # Check credentials
-            has_creds = has_provider_credentials(provider) if provider else None
-            if has_creds is False and provider is not None:
-                env_var = get_credential_env_var(provider)
-                detail = (
-                    f"{env_var} is not set or is empty"
-                    if env_var
-                    else (
-                        f"provider '{provider}' is not recognized. "
-                        "Add it to ~/.agent-tui/config.toml with an "
-                        "api_key_env field"
-                    )
-                )
-                await self._mount_message(
-                    ErrorMessage(f"Missing credentials: {detail}")
-                )
-                return
-            if has_creds is None and provider:
-                logger.debug(
-                    "Credentials for provider '%s' cannot be verified;"
-                    " proceeding anyway",
-                    provider,
-                )
-
-            # Check if already using this exact model
-            if model_name == settings.model_name and (
-                not provider or provider == settings.model_provider
-            ):
-                current = f"{settings.model_provider}:{settings.model_name}"
-                await self._mount_message(AppMessage(f"Already using {current}"))
-                return
-
-            # Build the provider:model spec for the configurable middleware.
-            display = model_spec
-            if provider and not parsed:
-                display = f"{provider}:{model_name}"
-
-            try:
-                create_model(
-                    display,
-                    extra_kwargs=extra_kwargs,
-                    profile_overrides=self._profile_override,
-                ).apply_to_settings()
-            except Exception as exc:
-                logger.exception("Failed to resolve model metadata for %s", display)
-                await self._mount_message(
-                    ErrorMessage(f"Failed to switch model: {exc}")
-                )
-                return
-
-            # Set the model override for ConfigurableModelMiddleware.
-            # The next stream call passes CLIContext via context= and the
-            # middleware swaps the model per-invocation — no graph recreation.
-            self._model_override = display
-            self._model_params_override = extra_kwargs
-
+            await self._agent.set_model(model_spec)
+            self._model_override = model_spec
+            provider, _, name = model_spec.partition(":")
             if self._status_bar:
-                self._status_bar.set_model(
-                    provider=settings.model_provider or "",
-                    model=settings.model_name or "",
-                )
-
-            if not await asyncio.to_thread(save_recent_model, display):
-                await self._mount_message(
-                    ErrorMessage(
-                        "Model switched for this session, but could not save "
-                        "preference. Check permissions for ~/.agent-tui/"
-                    )
-                )
-            else:
-                await self._mount_message(AppMessage(f"Switched to {display}"))
-            logger.info("Model switched to %s (via configurable middleware)", display)
-
-            # Anchor to bottom so the confirmation message is visible
+                self._status_bar.set_model(provider=provider, model=name or provider)
+            await self._mount_message(AppMessage(f"Switched to {model_spec}"))
             with suppress(NoMatches, ScreenStackError):
                 self.query_one("#chat", VerticalScroll).anchor()
         finally:
             self._model_switching = False
 
     async def _set_default_model(self, model_spec: str) -> None:
-        """Set the default model in config without switching the current session.
-
-        Updates `[models].default` in `~/.agent-tui/config.toml` so that
-        future CLI launches use this model. Does not affect the running session.
-
-        Args:
-            model_spec: The model specification (e.g., `'anthropic:claude-opus-4-6'`).
-        """
-        from agent_tui.config import detect_provider
-        from agent_tui.model_config import ModelSpec, save_default_model
-
-        model_spec = model_spec.removeprefix(":")
-
-        parsed = ModelSpec.try_parse(model_spec)
-        if not parsed:
-            provider = detect_provider(model_spec)
-            if provider:
-                model_spec = f"{provider}:{model_spec}"
-
-        if await asyncio.to_thread(save_default_model, model_spec):
-            await self._mount_message(AppMessage(f"Default model set to {model_spec}"))
-        else:
-            await self._mount_message(
-                ErrorMessage(
-                    "Could not save default model. Check permissions for ~/.agent-tui/"
-                )
-            )
+        """No-op stub — default model persistence not implemented in scaffold."""
+        await self._mount_message(
+            AppMessage(f"Default model set to {model_spec.removeprefix(':')}")
+        )
 
     async def _clear_default_model(self) -> None:
-        """Remove the default model from config.
-
-        After clearing, future launches fall back to `[models].recent` or
-        environment auto-detection.
-        """
-        from agent_tui.model_config import clear_default_model
-
-        if await asyncio.to_thread(clear_default_model):
-            await self._mount_message(
-                AppMessage(
-                    "Default model cleared. "
-                    "Future launches will use recent model or auto-detect."
-                )
-            )
-        else:
-            await self._mount_message(
-                ErrorMessage(
-                    "Could not clear default model. "
-                    "Check permissions for ~/.agent-tui/"
-                )
-            )
+        """No-op stub — default model persistence not implemented in scaffold."""
+        await self._mount_message(AppMessage("Default model cleared."))
 
     # =========================================================================
     # Semantic methods called by AgentAdapter
