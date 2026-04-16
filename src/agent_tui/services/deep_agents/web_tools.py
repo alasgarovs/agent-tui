@@ -44,7 +44,7 @@ def create_web_search_tool():
                 return f"No results found for: {query}"
 
             lines: list[str] = [f"Search results for: {query}\n"]
-            for i, result in enumerate(results[:5], start=1):
+            for i, result in enumerate(results, start=1):
                 title = result.get("title", "No title")
                 url = result.get("url", "")
                 content = result.get("content", "")
@@ -90,6 +90,8 @@ def create_fetch_url_tool():
             html = response.text
             markdown = markdownify(html)
             return markdown[:10000]
+        except httpx.HTTPStatusError as e:
+            return f"Error fetching {url}: HTTP {e.response.status_code}"
         except Exception as e:
             return f"Error fetching {url}: {str(e)}"
 
