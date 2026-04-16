@@ -4143,10 +4143,12 @@ class AgentTuiApp(App):
         Called by AgentAdapter on TOOL_CALL events. Delegates to
         _request_approval, translating its result dict to a bool.
         """
+        logger.info("[APP] request_tool_approval called: %s (id=%s)", tool_name, tool_id)
         action_request: dict[str, Any] = {"name": tool_name, "args": tool_args}
         result_future = await self._request_approval([action_request], None)
         try:
             result = await result_future
+            logger.info("[APP] Approval result: %s", result)
         except Exception:
             logger.exception("Error waiting for tool approval")
             return False
@@ -4215,41 +4217,19 @@ class AgentTuiApp(App):
         self.call_later(self._mount_message, ErrorMessage(text))
 
     def show_plan_step(self, step_text: str, current_step: int, total_steps: int) -> None:
-        """Show planning step indicator.
-
-        Called by AgentAdapter on PLAN_STEP events.
-        Phase 5+ will implement proper UI. For now, just log.
-        """
-        logger.debug(
-            "Plan step %d/%d: %s",
-            current_step,
-            total_steps,
-            step_text,
+        self.call_later(
+            self._mount_message,
+            AppMessage(f"📋 Planning (step {current_step}/{total_steps}): {step_text}"),
         )
 
     def show_subagent_started(self, subagent_name: str) -> None:
-        """Show subagent activity indicator.
-
-        Called by AgentAdapter on SUBAGENT_START events.
-        Phase 5+ will implement proper UI. For now, just log.
-        """
-        logger.debug("Subagent started: %s", subagent_name)
+        self.call_later(self._mount_message, AppMessage(f"🤖 Subagent started: {subagent_name}"))
 
     def show_subagent_finished(self, subagent_name: str) -> None:
-        """Show subagent completed indicator.
-
-        Called by AgentAdapter on SUBAGENT_END events.
-        Phase 5+ will implement proper UI. For now, just log.
-        """
-        logger.debug("Subagent finished: %s", subagent_name)
+        self.call_later(self._mount_message, AppMessage(f"✅ Subagent finished: {subagent_name}"))
 
     def show_context_summarized(self, token_count: int) -> None:
-        """Show context was summarized.
-
-        Called by AgentAdapter on CONTEXT_SUMMARIZED events.
-        Phase 6+ will implement proper UI. For now, just log.
-        """
-        logger.debug("Context summarized, token count: %d", token_count)
+        self.call_later(self._mount_message, AppMessage(f"📝 Context summarized (≈{token_count:,} tokens)"))
 
     def pause_for_human_input(self) -> None:
         """Pause UI for human input during interrupt.
