@@ -2,7 +2,7 @@
 
 Standalone TUI scaffold for building AI coding agent CLIs.
 
-Extracted from the deepagents CLI — full UI with all agent interactions stubbed behind an `AgentProtocol`.
+Extracted from the [deepagents CLI](https://github.com/langchain-ai/deepagents/) — full UI with all agent interactions stubbed behind an `AgentProtocol`.
 
 ## Installation
 
