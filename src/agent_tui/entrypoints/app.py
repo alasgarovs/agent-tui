@@ -57,6 +57,7 @@ from agent_tui.entrypoints.widgets.messages import (
     ErrorMessage,
     QueuedUserMessage,
     SkillMessage,
+    SummarizationMessage,
     ToolCallMessage,
     UserMessage,
 )
@@ -4242,8 +4243,11 @@ class AgentTuiApp(App):
         self.call_later(self._mount_message, AppMessage(content))
 
     def show_context_summarized(self, token_count: int) -> None:
+        self._session_stats.context_compaction_count += 1
         self._update_status(f"Context compacted (≈{token_count:,} tokens)")
-        self._on_tokens_update(token_count)
+        if token_count:
+            self._on_tokens_update(token_count)
+        self.call_later(self._mount_message, SummarizationMessage())
 
     def pause_for_human_input(self) -> None:
         """Pause UI for human input during interrupt.
