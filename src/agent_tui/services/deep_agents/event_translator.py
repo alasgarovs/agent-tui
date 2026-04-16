@@ -48,9 +48,12 @@ class EventTranslator:
         - on_tool_start → TOOL_CALL
         - on_tool_end → TOOL_RESULT
 
+    Supported events (Phase 5):
+        - on_tool_start where tool name is "task" → SUBAGENT_START
+        - on_tool_end where tool name is "task" → SUBAGENT_END
+
     Not yet handled (future phases):
         - PLAN_STEP (Phase 5)
-        - SUBAGENT_START/SUBAGENT_END (Phase 5)
         - CONTEXT_SUMMARIZED (Phase 6)
         - INTERRUPT (Phase 8)
     """
@@ -124,6 +127,16 @@ class EventTranslator:
         tool_input = data.get("input", {})
         run_id = event.get("run_id", "")
 
+        if tool_name == "task":
+            subagent_name = (
+                tool_input.get("description", "")
+                or tool_input.get("task", "")
+                or "subagent"
+            )
+            subagent_name = subagent_name[:80]
+            yield AgentEvent(type=EventType.SUBAGENT_START, subagent_name=subagent_name)
+            return
+
         if tool_name:
             # Normalize paths in tool arguments to resolve against current directory
             # instead of filesystem root
@@ -159,6 +172,10 @@ class EventTranslator:
         # Get tool name and run_id from event (similar to _handle_tool_start)
         tool_name = event.get("name", "") or data.get("name", "")
         run_id = event.get("run_id", "")
+
+        if tool_name == "task":
+            yield AgentEvent(type=EventType.SUBAGENT_END, subagent_name="")
+            return
 
         yield AgentEvent(
             type=EventType.TOOL_RESULT,
