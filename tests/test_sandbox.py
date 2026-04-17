@@ -567,18 +567,17 @@ class TestGrep:
         assert result["error"] is None
         assert result["matches"] == []
 
-    def test_grep_regex(self, tmp_path, monkeypatch):
-        """Grep supports regex patterns."""
+    def test_grep_literal(self, tmp_path, monkeypatch):
+        """Grep uses literal substring matching (NOT regex)."""
         monkeypatch.chdir(tmp_path)
         backend = SandboxBackend()
         (backend.root_dir / "test.txt").write_text("Hello World 123\nGoodbye 456")
 
-        result = backend.grep(r"\d+", "test.txt")
+        result = backend.grep("123", "test.txt")
 
         assert result["error"] is None
-        assert len(result["matches"]) == 2
+        assert len(result["matches"]) == 1
         assert "123" in result["matches"][0]["text"]
-        assert "456" in result["matches"][1]["text"]
 
     def test_grep_skips_binary(self, tmp_path, monkeypatch):
         """Grep skips binary files."""

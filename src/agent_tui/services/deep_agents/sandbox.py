@@ -63,6 +63,11 @@ class SandboxBackend(SandboxBackendProtocol):
         """Whether sandbox will be cleaned up on destruction."""
         return self._should_cleanup
 
+    @property
+    def id(self) -> str:
+        """Unique identifier for this sandbox instance."""
+        return str(self.root_dir.resolve())
+
     def _ensure_sandbox(self) -> None:
         """Create sandbox directory if it doesn't exist."""
         self.root_dir.mkdir(parents=True, exist_ok=True)
@@ -412,15 +417,13 @@ class SandboxBackend(SandboxBackendProtocol):
         """Search content in sandbox files.
 
         Args:
-            pattern: Regex pattern to search for
+            pattern: Literal string to search for (NOT regex)
             path: File or directory path within sandbox
             glob: Optional glob pattern to filter files
 
         Returns:
             GrepResult with matches or error
         """
-        import re
-
         try:
             if path is None:
                 path = "/"
@@ -445,7 +448,7 @@ class SandboxBackend(SandboxBackendProtocol):
                 try:
                     content = file_path.read_text(encoding="utf-8")
                     for i, line in enumerate(content.split("\n"), 1):
-                        if re.search(pattern, line):
+                        if pattern in line:
                             rel_path = file_path.relative_to(self.root_dir)
                             match: GrepMatch = {
                                 "path": str(rel_path),
