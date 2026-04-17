@@ -4158,7 +4158,8 @@ class AgentTuiApp(App):
         """Mount tool result widget.
 
         Called by AgentAdapter on TOOL_RESULT events. Mounts a ToolCallMessage
-        pre-populated with the success output.
+        pre-populated with the success output. The widget's built-in formatter
+        handles per-tool display (web_search, fetch_url, execute, etc.).
         """
         widget = ToolCallMessage(tool_name=tool_name, id=f"tool-{tool_id}")
         # Apply deferred state so the widget renders correctly on mount.
@@ -4229,7 +4230,8 @@ class AgentTuiApp(App):
         self.call_later(self._mount_message, AppMessage(f"✅ Subagent finished: {subagent_name}"))
 
     def show_context_summarized(self, token_count: int) -> None:
-        self.call_later(self._mount_message, AppMessage(f"📝 Context summarized (≈{token_count:,} tokens)"))
+        self._update_status(f"Context compacted (≈{token_count:,} tokens)")
+        self._on_tokens_update(token_count)
 
     def pause_for_human_input(self) -> None:
         """Pause UI for human input during interrupt.
