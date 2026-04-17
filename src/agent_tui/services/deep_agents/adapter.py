@@ -127,6 +127,7 @@ class DeepAgentsAdapter:
             import os
 
             from deepagents import create_deep_agent
+            from langchain.agents.middleware import InterruptOnConfig
             from langchain.chat_models import init_chat_model
             from langgraph.checkpoint.memory import MemorySaver
 
@@ -172,12 +173,27 @@ class DeepAgentsAdapter:
             if self._store is None:
                 self._store = create_store()
 
+            # Configure which tools trigger human-in-the-loop interrupts
+            interrupt_on = InterruptOnConfig(
+                tools={
+                    "execute": True,  # Always interrupt on shell commands
+                    "write_file": True,  # Interrupt on file writes
+                    "edit_file": True,  # Interrupt on file edits
+                    "read_file": False,  # Auto-approve reads (safe)
+                    "glob": False,  # Auto-approve searches (safe)
+                    "grep": False,  # Auto-approve searches (safe)
+                    "web_search": True,  # Interrupt on external calls
+                    "fetch_url": True,  # Interrupt on external calls
+                }
+            )
+
             self._agent = create_deep_agent(
                 model=model,
                 checkpointer=checkpointer,
                 backend=backend,
                 tools=tools,
                 store=self._store,
+                interrupt_on=interrupt_on,
                 **memory_kwargs,
                 **skill_kwargs,
             )
