@@ -146,9 +146,7 @@ class AgentAdapter:
                 self.app.show_error(event.text)
 
             case EventType.PLAN_STEP:
-                self.app.set_status(
-                    f"Planning: step {event.plan_current_step}/{event.plan_total_steps}"
-                )
+                self.app.set_status(f"Planning: step {event.plan_current_step}/{event.plan_total_steps}")
                 self.app.show_plan_step(
                     event.plan_step_text,
                     event.plan_current_step,
@@ -168,7 +166,31 @@ class AgentAdapter:
                 self.app.show_context_summarized(event.token_count)
 
             case EventType.INTERRUPT:
-                logger.debug("Agent interrupted")
+                logger.info("Agent interrupted, showing HITL overlay")
+                # Extract interrupt details from event
+                tool_name = event.tool_name
+                tool_args = event.tool_args
+                tool_id = event.tool_id
+
+                # Show interrupt overlay with approve/edit/reject options
+                result = await self.app.show_interrupt_overlay(
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                    tool_id=tool_id,
+                )
+
+                # Handle result
+                match result["action"]:
+                    case "approve":
+                        # Resume with original args
+                        await self.agent.approve_tool(tool_id, True)
+                    case "edit":
+                        # Placeholder: Edit mode requires LangGraph API research for passing modified arguments
+                        # For now, fall through to approve
+                        await self.agent.approve_tool(tool_id, True)
+                    case "reject":
+                        # Skip this tool
+                        await self.agent.approve_tool(tool_id, False)
 
             case _:
                 logger.warning("Unknown event type: %s", event.type)
