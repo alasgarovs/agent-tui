@@ -79,6 +79,7 @@ class DeepAgentsAdapter:
         self._pending_tool_id: str | None = None
         self._answer_event: asyncio.Event | None = None
         self._user_answer: str = ""
+        self._store: Any = None
 
         self._deepagents_available = self._check_deepagents_available()
 
@@ -124,13 +125,13 @@ class DeepAgentsAdapter:
 
         if self._agent is None:
             import os
-            from pathlib import Path
 
             from deepagents import create_deep_agent
             from langchain.chat_models import init_chat_model
             from langgraph.checkpoint.memory import MemorySaver
 
-            from agent_tui.services.deep_agents.backend import create_backend
+            from agent_tui.services.deep_agents.backend import create_backend, create_store
+            from agent_tui.services.deep_agents.memory import get_memory_sources
             from agent_tui.services.deep_agents.web_tools import (
                 create_fetch_url_tool,
                 create_web_search_tool,
@@ -157,11 +158,28 @@ class DeepAgentsAdapter:
             # Web tools: web search via Tavily and URL fetching via httpx
             tools = [create_web_search_tool(), create_fetch_url_tool()]
 
+            # Memory support via AGENTS.md files
+            memory_sources = get_memory_sources()
+            memory_kwargs = {"memory": memory_sources} if memory_sources else {}
+
+            # Skills support via .md files in skill directories
+            from agent_tui.services.deep_agents.skills import get_skill_sources
+
+            skill_sources = get_skill_sources()
+            skill_kwargs = {"skills": skill_sources} if skill_sources else {}
+
+            # Reuse existing store across model switches to preserve cross-thread state.
+            if self._store is None:
+                self._store = create_store()
+
             self._agent = create_deep_agent(
                 model=model,
                 checkpointer=checkpointer,
                 backend=backend,
                 tools=tools,
+                store=self._store,
+                **memory_kwargs,
+                **skill_kwargs,
             )
 
         return self._agent
@@ -349,36 +367,12 @@ class DeepAgentsAdapter:
         Returns:
             A list of skill dictionaries with name and description fields.
         """
-        if not self._deepagents_available:
-            return [
-                {
-                    "name": "search",
-                    "description": "Search the web for information",
-                },
-                {
-                    "name": "summarize",
-                    "description": "Summarize a document or URL",
-                },
-                {
-                    "name": "analyze",
-                    "description": "Analyze code or data",
-                },
-            ]
+        from agent_tui.services.deep_agents.skills import (
+            get_skill_sources,
+            list_available_skills,
+        )
 
-        return [
-            {
-                "name": "search",
-                "description": "Search the web for information",
-            },
-            {
-                "name": "summarize",
-                "description": "Summarize a document or URL",
-            },
-            {
-                "name": "analyze",
-                "description": "Analyze code or data",
-            },
-        ]
+        return list_available_skills(get_skill_sources())
 
     async def invoke_skill(self, name: str, args: str) -> None:
         """Invoke a skill by name.
@@ -388,3 +382,17 @@ class DeepAgentsAdapter:
             args: Arguments to pass to the skill.
         """
         pass
+
+    def get_memory_content(self) -> dict[str, str]:
+        """Return current AGENTS.md memory content keyed by source path.
+
+        This is a DeepAgentsAdapter-specific extension (not on AgentProtocol).
+        Callers should use hasattr() or isinstance() checks before calling.
+
+        Returns:
+            Dict mapping display path (str) to file content (str).
+            Empty dict if no memory files are available.
+        """
+        from agent_tui.services.deep_agents.memory import read_memory_content
+
+        return read_memory_content()
