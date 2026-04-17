@@ -124,13 +124,13 @@ class DeepAgentsAdapter:
 
         if self._agent is None:
             import os
-            from pathlib import Path
 
             from deepagents import create_deep_agent
             from langchain.chat_models import init_chat_model
             from langgraph.checkpoint.memory import MemorySaver
 
             from agent_tui.services.deep_agents.backend import create_backend
+            from agent_tui.services.deep_agents.memory import get_memory_sources
             from agent_tui.services.deep_agents.web_tools import (
                 create_fetch_url_tool,
                 create_web_search_tool,
@@ -157,11 +157,16 @@ class DeepAgentsAdapter:
             # Web tools: web search via Tavily and URL fetching via httpx
             tools = [create_web_search_tool(), create_fetch_url_tool()]
 
+            # Memory support via AGENTS.md files
+            memory_sources = get_memory_sources()
+            memory_kwargs = {"memory": memory_sources} if memory_sources else {}
+
             self._agent = create_deep_agent(
                 model=model,
                 checkpointer=checkpointer,
                 backend=backend,
                 tools=tools,
+                **memory_kwargs,
             )
 
         return self._agent
@@ -388,3 +393,17 @@ class DeepAgentsAdapter:
             args: Arguments to pass to the skill.
         """
         pass
+
+    def get_memory_content(self) -> dict[str, str]:
+        """Return current AGENTS.md memory content keyed by source path.
+
+        This is a DeepAgentsAdapter-specific extension (not on AgentProtocol).
+        Callers should use hasattr() or isinstance() checks before calling.
+
+        Returns:
+            Dict mapping display path (str) to file content (str).
+            Empty dict if no memory files are available.
+        """
+        from agent_tui.services.deep_agents.memory import read_memory_content
+
+        return read_memory_content()
