@@ -1,7 +1,7 @@
 <aside class="nb-sidebar w-64 flex flex-col h-full">
     <!-- Projects Section -->
     <div class="nb-sidebar-header">Projects</div>
-    <div class="overflow-y-auto" style="max-height: 30%;">
+    <div class="overflow-y-auto" style="max-height: 25%;">
         {% for project in projects %}
         <a href="/project/{{ project.id }}" 
            class="nb-sidebar-item block {% if current_project == project.id %}bg-nb-yellow{% endif %}">
@@ -17,10 +17,16 @@
     <div class="nb-sidebar-header">Chats</div>
     <div class="flex-1 overflow-y-auto">
         {% for chat in chats %}
-        <a href="/chat/{{ chat.id }}" 
-           class="nb-sidebar-item block pl-6 text-sm {% if current_chat == chat.id %}bg-nb-yellow{% endif %}">
-            {{ chat.title }}
-        </a>
+        <div class="nb-sidebar-item flex justify-between items-center pl-6 pr-2 text-sm {% if current_chat == chat.id %}bg-nb-yellow{% endif %}">
+            <a href="/chat/{{ chat.id }}" class="flex-1 truncate">
+                {{ chat.title }}
+            </a>
+            <button @click="editingChatId = '{{ chat.id }}'; editingChatTitle = '{{ chat.title }}'; showRenameModal = true" 
+                    class="ml-2 text-gray-500 hover:text-nb-black opacity-0 hover:opacity-100 transition-opacity"
+                    title="Rename chat">
+                ✎
+            </button>
+        </div>
         {% endfor %}
     </div>
     

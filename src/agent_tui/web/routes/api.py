@@ -124,6 +124,16 @@ async def get_chat(chat_id: str) -> dict[str, Any]:
     raise HTTPException(status_code=501, detail="Not implemented")
 
 
+@router.patch("/chats/{chat_id}")
+async def update_chat(chat_id: str, request: CreateChatRequest) -> dict[str, Any]:
+    """Update a chat's title."""
+    store = get_session_store()
+    chat = await store.update_chat(chat_id, title=request.title)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return chat
+
+
 @router.delete("/chats/{chat_id}")
 async def delete_chat(chat_id: str) -> dict[str, str]:
     """Delete a chat."""
@@ -142,5 +152,12 @@ async def list_models() -> list[dict[str, Any]]:
 @router.get("/skills")
 async def list_skills() -> list[dict[str, Any]]:
     """List available skills (requires agent)."""
-    # This will be populated when agent is available
-    return []
+    # Return stub agent skills for now
+    return [
+        {"name": "search", "description": "Search the web for information", "command": "/search"},
+        {"name": "summarize", "description": "Summarize a document or URL", "command": "/summarize"},
+        {"name": "analyze", "description": "Analyze code or data", "command": "/analyze"},
+        {"name": "git", "description": "Git operations (status, diff, commit)", "command": "/git"},
+        {"name": "test", "description": "Run tests for the project", "command": "/test"},
+        {"name": "lint", "description": "Run linter on the codebase", "command": "/lint"},
+    ]

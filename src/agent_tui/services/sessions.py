@@ -1324,7 +1324,44 @@ class SessionStore:
                 "SELECT * FROM projects ORDER BY updated_at DESC"
             ) as cursor:
                 rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
+            return [dict(row) for row in rows]
+    
+    async def update_chat(self, chat_id: str, title: str) -> dict[str, Any] | None:
+        """Update a chat's title.
+        
+        Args:
+            chat_id: The chat ID to update.
+            title: New title for the chat.
+            
+        Returns:
+            Updated chat dictionary or None if not found.
+        """
+        aiosqlite_mod = _get_aiosqlite()
+        
+        async with aiosqlite_mod.connect(self.db_path) as db:
+            # Check if chat exists
+            async with db.execute(
+                "SELECT * FROM chat_sessions WHERE id = ?",
+                (chat_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+            
+            # Update title
+            await db.execute(
+                "UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ?",
+                (title, datetime.now().isoformat(), chat_id)
+            )
+            await db.commit()
+            
+            # Return updated chat
+            async with db.execute(
+                "SELECT * FROM chat_sessions WHERE id = ?",
+                (chat_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
     
     async def update_project(
         self, 
