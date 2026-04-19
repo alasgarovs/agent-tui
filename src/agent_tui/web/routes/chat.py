@@ -52,6 +52,47 @@ async def index(request: Request) -> Any:
     )
 
 
+@router.get("/project/{project_id}", response_class=HTMLResponse)
+async def project_page(project_id: str, request: Request) -> Any:
+    """Render project page with its chats."""
+    store = get_session_store()
+    
+    # Get all projects for sidebar
+    projects = await store.list_projects()
+    
+    # Verify project exists
+    project = await store.get_project(project_id)
+    if not project:
+        return templates.TemplateResponse(
+            request,
+            "chat.html",
+            context={
+                "projects": projects,
+                "chats": [],
+                "current_project": None,
+                "current_chat": None,
+                "messages": [],
+                "error": "Project not found"
+            }
+        )
+    
+    # Get chats for this project
+    chats = await store.list_chats(project_id=project_id)
+    
+    return templates.TemplateResponse(
+        request,
+        "chat.html",
+        context={
+            "projects": projects,
+            "chats": chats,
+            "current_project": project_id,
+            "current_chat": None,
+            "messages": [],
+            "empty_state": False
+        }
+    )
+
+
 @router.get("/chat/{chat_id}", response_class=HTMLResponse)
 async def chat_page(chat_id: str, request: Request) -> Any:
     """Render chat page."""
