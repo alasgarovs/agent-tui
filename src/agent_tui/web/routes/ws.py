@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from agent_tui.services.stub_agent import StubAgent
+from agent_tui.services.agent_factory import create_agent
 from agent_tui.services.web_adapter import WebAdapter
 from agent_tui.web.state import ConnectionState, connection_manager
 
@@ -24,8 +25,19 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     
     client_id = str(uuid.uuid4())
     
-    # Create agent instance (using stub for now)
-    agent = StubAgent()
+    # Create agent instance based on configuration
+    agent_type = os.environ.get('AGENT_TUI_WEB_AGENT', 'stub')
+    try:
+        agent = create_agent(agent_type)
+        logger.info(f"Created {agent_type} agent for client {client_id}")
+    except Exception as e:
+        logger.error(f"Failed to create agent: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Failed to initialize agent: {e}"
+        })
+        await websocket.close()
+        return
     
     # Create connection state
     state = ConnectionState(

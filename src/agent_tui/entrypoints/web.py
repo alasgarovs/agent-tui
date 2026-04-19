@@ -33,7 +33,9 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def startup():
         """Initialize services on startup."""
-        logger.info("Starting Agent TUI Web server")
+        import os
+        agent_type = os.environ.get('AGENT_TUI_WEB_AGENT', 'stub')
+        logger.info(f"Starting Agent TUI Web server with {agent_type} agent")
         # Initialize session store
         from agent_tui.web.routes.api import get_session_store
         store = get_session_store()

@@ -161,3 +161,15 @@ async def list_skills() -> list[dict[str, Any]]:
         {"name": "test", "description": "Run tests for the project", "command": "/test"},
         {"name": "lint", "description": "Run linter on the codebase", "command": "/lint"},
     ]
+
+
+@router.get("/status")
+async def get_status() -> dict[str, Any]:
+    """Get server status including active agent type."""
+    import os
+    agent_type = os.environ.get('AGENT_TUI_WEB_AGENT', 'stub')
+    return {
+        "status": "ok",
+        "agent_type": agent_type,
+        "version": "0.1.0"
+    }

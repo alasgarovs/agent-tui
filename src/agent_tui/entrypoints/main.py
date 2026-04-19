@@ -168,6 +168,9 @@ def cli_main() -> None:
         if _args.web:
             from agent_tui.entrypoints.web import main as web_main
 
+            # Pass agent type to web interface via environment variable
+            os.environ['AGENT_TUI_WEB_AGENT'] = _args.agent
+            logger.info(f"Starting web interface with {_args.agent} agent")
             web_main()
             return
 
