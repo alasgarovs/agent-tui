@@ -37,19 +37,9 @@ async def index(request: Request) -> Any:
             }
         )
 
-    # Redirect to first project
-    return templates.TemplateResponse(
-        request,
-        "chat.html",
-        context={
-            "projects": projects,
-            "chats": [],
-            "current_project": projects[0]["id"],
-            "current_chat": None,
-            "messages": [],
-            "empty_state": False
-        }
-    )
+    # Redirect to first project page
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=f"/project/{projects[0]['id']}", status_code=302)
 
 
 @router.get("/project/{project_id}", response_class=HTMLResponse)
