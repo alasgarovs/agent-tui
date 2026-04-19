@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - Agent TUI Web{% endblock %}
+
+{% block alpine_data %}chatApp{% endblock %}
+
+{% block content %}
+<div class="h-full flex flex-col">
+    <!-- Header -->
+    <header class="border-b-3 border-nb-black bg-nb-yellow px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-4">
+            <span class="font-bold text-xl">▓▓▓ AGENT-TUI WEB ▓▓▓</span>
+            {% if current_project %}
+            <select class="nb-input py-1 text-sm">
+                {% for project in projects %}
+                <option value="{{ project.id }}" {% if project.id == current_project %}selected{% endif %}>
+                    {{ project.name }}
+                </option>
+                {% endfor %}
+            </select>
+            {% endif %}
+        </div>
+        <div class="flex gap-3">
+            <button @click="showProjectModal = true" class="nb-btn text-sm py-2">+ Add Project</button>
+            <button class="nb-btn text-sm py-2">⚙️</button>
+        </div>
+    </header>
+    
+    {% if empty_state %}
+    <!-- Empty State -->
+    <div class="flex-1 flex items-center justify-center">
+        <div class="nb-card p-8 text-center max-w-md">
+            <div class="text-6xl mb-4">📁</div>
+            <h2 class="text-xl font-bold mb-2">No projects yet</h2>
+            <p class="mb-6 text-gray-600">Add your first project to start chatting with AI</p>
+            <button @click="showProjectModal = true" class="nb-btn-primary">+ Add Project</button>
+        </div>
+    </div>
+    {% else %}
+    <!-- Main Layout -->
+    <div class="flex-1 flex overflow-hidden">
+        <!-- Sidebar -->
+        {% include "components/sidebar.html" %}
+        
+        <!-- Chat Area -->
+        <main class="flex-1 flex flex-col bg-nb-bg">
+            <!-- Messages -->
+            <div x-ref="messagesContainer" class="flex-1 overflow-y-auto p-4">
+                {% if current_chat %}
+                    {% for msg in messages %}
+                        {% from "components/message.html" import message %}
+                        {{ message(msg.type, msg.content, msg.timestamp) }}
+                    {% endfor %}
+                {% else %}
+                    <div class="flex items-center justify-center h-full text-gray-500">
+                        Select a chat or create a new one
+                    </div>
+                {% endif %}
+                
+                <!-- Streaming content goes here -->
+                <div id="streaming-content"></div>
+            </div>
+            
+            <!-- Input Area -->
+            {% if current_chat %}
+            <div class="border-t-3 border-nb-black bg-nb-bg p-4">
+                <form x-ref="chatForm" 
+                      hx-post="/api/chat/{{ current_chat }}/stream"
+                      hx-swap="none"
+                      @submit.prevent="sendMessage()"
+                      class="flex gap-3">
+                    <input type="text" 
+                           x-model="message"
+                           class="nb-input flex-1"
+                           placeholder="Type your message..."
+                           :disabled="isStreaming"
+                           @keydown.enter.prevent="sendMessage()">
+                    <button type="submit" 
+                            class="nb-btn-primary"
+                            :disabled="isStreaming || !message.trim()">
+                        <span x-show="!isStreaming">Send</span>
+                        <span x-show="isStreaming">...</span>
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+    {% endif %}
+    
+    <!-- Modals -->
+    {% include "components/project_modal.html" %}
+    {% include "components/approval_modal.html" %}
+</div>
+
+<script>
+// WebSocket connection for real-time updates
+let ws = null;
+
+function connectWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    
+    ws.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        handleWebSocketMessage(data);
+    };
+    
+    ws.onclose = function() {
+        console.log('WebSocket closed, reconnecting...');
+        setTimeout(connectWebSocket, 1000);
+    };
+}
+
+function handleWebSocketMessage(data) {
+    switch(data.type) {
+        case 'chunk':
+            appendChunk(data.text);
+            break;
+        case 'message_end':
+            Alpine.store('chatApp').onStreamComplete();
+            break;
+        case 'tool_call':
+            showToolApproval(data);
+            break;
+        case 'status':
+            updateStatus(data.text);
+            break;
+        case 'error':
+            showError(data.message);
+            break;
+    }
+}
+
+function appendChunk(text) {
+    const container = document.getElementById('streaming-content');
+    container.innerHTML += text;
+}
+
+function showToolApproval(data) {
+    // Dispatch to Alpine component
+    window.dispatchEvent(new CustomEvent('tool-call-received', { detail: data }));
+}
+
+function approveTool(toolId, approved) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'approve_tool',
+            tool_id: toolId,
+            approved: approved
+        }));
+    }
+}
+
+function updateStatus(text) {
+    // Update status indicator
+}
+
+function showError(message) {
+    alert('Error: ' + message);
+}
+
+// Connect on load
+connectWebSocket();
+</script>
+{% endblock %}
