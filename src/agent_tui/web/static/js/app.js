@@ -54,6 +54,11 @@ window.chatApp = function() {
         this.showErrorToast = true;
         setTimeout(() => this.showErrorToast = false, 5000);
       }
+      fetch('/api/chats/' + chatId + '/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'user', content: txt })
+      }).catch(e => console.error('Failed to save user message:', e));
     },
     addUserMessage(text) {
       const container = document.getElementById('messages-list');

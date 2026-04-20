@@ -64,10 +64,19 @@
                 <div id="streaming-content" style="display: none;"></div>
             </div>
             
+            <!-- Thinking Indicator (Running Dino) -->
+            <div x-show="statusText === 'thinking'" x-cloak class="nb-status flex items-center gap-3 py-2 px-4 bg-nb-yellow border-t-3 border-nb-black">
+                <div class="dino-runner" aria-label="Dino running">
+                    <span class="dino">🦕</span>
+                    <span class="motion-line">~</span>
+                    <span class="motion-line">~</span>
+                </div>
+                <span class="font-bold">Running errands for you...</span>
+            </div>
+
             <!-- Status Bar -->
-            <div x-show="statusText" x-cloak class="nb-status flex justify-between items-center">
+            <div x-show="statusText && statusText !== 'thinking'" x-cloak class="nb-status flex justify-between items-center">
                 <span x-text="statusText"></span>
-                <span x-show="statusText === 'thinking'" class="animate-pulse">⚡</span>
             </div>
             
             <!-- Input Area -->
