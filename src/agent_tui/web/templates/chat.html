@@ -2,6 +2,14 @@
 
 {% block title %}Chat - Agent TUI Web{% endblock %}
 
+{% block styles %}
+.chat-title {
+    word-break: break-word;
+    white-space: normal;
+    overflow-wrap: break-word;
+}
+{% endblock %}
+
 {% block alpine_data %}chatApp(){% endblock %}
 
 {% block content %}

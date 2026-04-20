@@ -42,7 +42,7 @@ class UpdateProjectRequest(BaseModel):
 
 
 class CreateChatRequest(BaseModel):
-    title: str = "New Chat"
+    title: str = "Generating title..."
 
 
 class CreateMessageRequest(BaseModel):

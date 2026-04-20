@@ -18,7 +18,7 @@
     <div class="flex-1 overflow-y-auto">
         {% for chat in chats %}
         <div class="nb-sidebar-item flex justify-between items-center pl-6 pr-2 text-sm {% if current_chat == chat.id %}bg-nb-yellow{% endif %}">
-            <a href="/chat/{{ chat.id }}" class="flex-1 truncate">
+            <a href="/chat/{{ chat.id }}" class="chat-title flex-1 truncate">
                 {{ chat.title }}
             </a>
             <div class="flex items-center gap-1">
