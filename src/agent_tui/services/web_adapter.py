@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -124,7 +125,14 @@ class WebAdapter:
                     "tool_name": event.tool_name,
                     "tool_args": event.tool_args
                 })
-            
+
+            case EventType.TITLE_REQUESTED:
+                asyncio.create_task(self._generate_title(
+                    event.user_message,
+                    event.assistant_response,
+                    event.thread_id,
+                ))
+
             case _:
                 logger.warning("Unknown event type: %s", event.type)
     
@@ -141,6 +149,27 @@ class WebAdapter:
             "type": "error",
             "message": message
         })
+
+    async def _generate_title(
+        self,
+        user_message: str,
+        assistant_response: str,
+        thread_id: str,
+    ) -> None:
+        """Generate title in background and update store."""
+        from agent_tui.services.deep_agents.title import TitleGenerator
+        from agent_tui.web.routes.api import get_session_store
+
+        try:
+            generator = TitleGenerator()
+            title = await generator.generate_title(
+                user_message=user_message,
+                assistant_response=assistant_response,
+            )
+            store = get_session_store()
+            await store.update_chat(thread_id, title)
+        except Exception:
+            logger.exception("Background title generation failed")
     
     async def approve_tool(self, tool_id: str, approved: bool) -> None:
         """Forward tool approval to agent."""
